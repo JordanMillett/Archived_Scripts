@@ -10,8 +10,6 @@ public class RandomYSpinEditor : Editor
 
         base.OnInspectorGUI();
 
-        GUILayout.BeginHorizontal();
-
         if(GUILayout.Button("Spin"))
         {
             foreach (RandomYSpin YSpin in targets.Cast<RandomYSpin>())
@@ -20,7 +18,13 @@ public class RandomYSpinEditor : Editor
             }
         }
 
-        GUILayout.EndHorizontal();
+        if(GUILayout.Button("Scale"))
+        {
+            foreach (RandomYSpin YSpin in targets.Cast<RandomYSpin>())
+            {
+                YSpin.Scale();
+            }
+        }
 
     }
 }
