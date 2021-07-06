@@ -16,7 +16,7 @@ public class AutoShop : MonoBehaviour
 
     MenuManager MM;
 
-    VehicleController Current;
+    Vehicle Current;
 
     bool ShouldLerp = false;
     int CamIndex = 0;
@@ -35,11 +35,12 @@ public class AutoShop : MonoBehaviour
         {
             try
             {
-                VehicleController VC = Object.transform.root.GetComponent<VehicleController>();
+                Vehicle VC = Object.transform.root.GetComponent<Vehicle>();
+                MirrorVehicle MRD = Object.transform.root.GetComponent<MirrorVehicle>();
         
                 if(VC != null)
                 {
-                    if(VC.Occupied && VC.ID.hasAuthority)
+                    if(MRD.Occupied && VC.ID.hasAuthority)
                     {
                         VC.CurrentShop = this;
                         Current = VC;

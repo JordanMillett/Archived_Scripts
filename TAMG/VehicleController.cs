@@ -5,6 +5,7 @@ using Mirror;
 
 public class VehicleController : NetworkBehaviour
 {
+    /*
     public VehicleConfig Config;
     public bool InShop = false;
     public Vector2 SavedLook = Vector2.zero;
@@ -17,6 +18,7 @@ public class VehicleController : NetworkBehaviour
     public AudioSource AS_Engine;
     public AudioSource AS_Horn;
     public AudioSource AS_Tire;
+    public AudioSource AS_Radio;
     public Transform Model;
     public Transform FRWheel;
     public Transform FLWheel;
@@ -37,9 +39,18 @@ public class VehicleController : NetworkBehaviour
     MenuManager MM;
     List<GameObject> Carried;
     
-    bool SwappingGears = false;
     float WheelTurnDeg = 25f;
     float SteeringTurnDeg = 55f;
+
+    //bool SwappingGears = false;
+    //int TotalGears = 3;
+    //int CurrentGear = 1;
+    //float IdleRPM = 1000f;
+    //float SwapDifferenceRPM = 1000f;
+    //float MaxRPM = 4000f;
+    //float RPMIncrease = 10f;
+    //float RPMDecrease = 50f;
+    //float CurrentRPM = 1000f;
 
     Color[] DefaultColors = new Color[5]
     {
@@ -67,6 +78,10 @@ public class VehicleController : NetworkBehaviour
     
     bool Initialized = false;
 
+    public HUD RadioHUD;
+    */
+    /*
+
     void Start()
     {
         if(this.gameObject.tag == "EODD")
@@ -78,6 +93,7 @@ public class VehicleController : NetworkBehaviour
         r = GetComponent<Rigidbody>();
         r.centerOfMass = Mass.localPosition;
         MM = GameObject.FindWithTag("Camera").GetComponent<MenuManager>();
+        RadioHUD = GameObject.FindWithTag("HUD").GetComponent<HUD>();
         if(ID.hasAuthority)
         {
             SetParts(CurrentParts);
@@ -126,6 +142,9 @@ public class VehicleController : NetworkBehaviour
                         CmdSetOccupied(true);
                         ToggleCarried(true);
                         MenuManager.MMInstance.fovOffset = 0f;
+                        RadioHUD.VC = this;
+                        RadioHUD.InCar = true;
+                        RadioHUD.SetStation(RadioHUD.CurrentStation);
 
                         P.r.collisionDetectionMode = CollisionDetectionMode.ContinuousSpeculative;
                         P.r.isKinematic = true;
@@ -151,9 +170,16 @@ public class VehicleController : NetworkBehaviour
 
     void FixedUpdate()
 	{   
-        if(Occupied && !InShop && MM.CurrentScreen == "HUD" && !MenuManager.MMInstance.ConsoleOpen)
+        if(ID.hasAuthority && Occupied)
         {
-            Movement();
+            if(!InShop && MM.CurrentScreen == "HUD" && !MenuManager.MMInstance.ConsoleOpen)
+            {
+                Movement();
+            }
+            else
+            {
+                Decelerate();
+            }
         }
 	}
 
@@ -315,7 +341,9 @@ public class VehicleController : NetworkBehaviour
             
             //if(EngineAlpha % (1f/Gears))
 
+
             EngineAlpha = r.velocity.magnitude/EK.TopSpeed;
+            //EngineAlpha = (CurrentRPM - IdleRPM)/(MaxRPM - IdleRPM);
 
             if(EngineAlpha > 1f)
                 EngineAlpha = 1f;
@@ -389,54 +417,60 @@ public class VehicleController : NetworkBehaviour
             }
         }
     }
-
+    */
     /*
     void OnDrawGizmosSelected()
     {
         Gizmos.color = new Color(1, 0, 0, 0.5f);
         Gizmos.DrawCube(CarryBounds.transform.position, CarryBounds.size);
     }*/
-
+    /*
     void Movement()
     {
 		if(Input.GetKey("w") || Input.GetKey("a") || Input.GetKey("s") || Input.GetKey("d"))
         {
-            /*
+            
             if(Input.GetKey(KeyCode.LeftShift))
             {
                 CurrentBoost = 2f;
             }else
             {
                 CurrentBoost = 1f;
-            }*/
+            }
 
             Vector3 MoveDirection = Vector3.zero;
             float TurnDirection = 0f;
 
             if (Input.GetKey("w"))
+            {
                 MoveDirection += transform.forward;
+                //Accelerate();
+            }
 
             if (Input.GetKey("a")) 
                 TurnDirection += -1f;
 
             if (Input.GetKey("s")) 
+            {
                 MoveDirection += -transform.forward;
+                //Decelerate();
+            }
 
             if (Input.GetKey("d")) 
                 TurnDirection += 1f;
 
-            /*
+            
             if(r.velocity.magnitude < Maxspeed)
             {
                 
-            }*/
+            }
 
             if(isGrounded())
             {
                 if(r.velocity.magnitude < EK.TopSpeed)
                 {
-                    if(!SwappingGears)
-                        r.AddForce(MoveDirection * EK.Acceleration);  //USE THIS ONE
+                    r.AddForce(MoveDirection * EK.Acceleration);  //USE THIS ONE
+                    //r.AddForce((MoveDirection * EK.Acceleration) * ((CurrentRPM/MaxRPM) * CurrentGear));  //USE THIS ONE
                 }
                 //r.velocity += (MoveDirection * Acceleration * CurrentBoost) * Time.fixedDeltaTime;
                 r.AddTorque((transform.up * Config.Turn * TurnDirection * r.mass) * Time.fixedDeltaTime);
@@ -450,6 +484,9 @@ public class VehicleController : NetworkBehaviour
 
             //this.transform.localEulerAngles += new Vector3(0f, Torque, 0f);
 
+        }else
+        {
+            Decelerate();
         }
 
         float Alpha = (r.velocity.magnitude - 25f)/750f;
@@ -468,6 +505,8 @@ public class VehicleController : NetworkBehaviour
         Model.transform.localPosition = ShakeVec;
         Addons.transform.localPosition = ShakeVec;
     }
+    */
+    /*
 
     void OnCollisionEnter(Collision col)    //STORE REFERENCE TO PLAYER ON OWN LATER YOU STUPID IDIOT GOD DAMN
     {
@@ -546,4 +585,53 @@ public class VehicleController : NetworkBehaviour
         Meshes.Add(ModelLoc.GetChild(2).GetChild(0).GetComponent<MeshRenderer>());
         Meshes.Add(ModelLoc.GetChild(3).GetChild(0).GetComponent<MeshRenderer>());
     }
+    */
+    /*
+    void Accelerate()
+    {
+        if(!SwappingGears)
+        {
+            if(CurrentRPM < MaxRPM - RPMIncrease)
+            {
+                CurrentRPM += RPMIncrease;
+            }else
+            {
+                if(CurrentGear == TotalGears)
+                    return;
+                StartCoroutine(ChangeGears(true));
+            }
+        }
+    }
+
+    void Decelerate()
+    {
+        if(!SwappingGears)
+        {
+            if(CurrentRPM > IdleRPM + RPMDecrease)
+            {
+                CurrentRPM -= RPMDecrease;
+            }else
+            {
+                if(CurrentGear == 1)
+                    return;
+                StartCoroutine(ChangeGears(false));
+            }
+        }
+    }
+
+    IEnumerator ChangeGears(bool Up)
+    {
+        CurrentGear += Up ? 1 : -1;
+        SwappingGears = true;
+        CurrentRPM = IdleRPM;
+        yield return new WaitForSeconds(0.5f);  //Gear Swap time
+        if(Up)
+            CurrentRPM = IdleRPM + SwapDifferenceRPM;
+        else
+            CurrentRPM = MaxRPM - SwapDifferenceRPM;
+
+        SwappingGears = false;
+    }*/
+
+
 }

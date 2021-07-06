@@ -19,7 +19,8 @@ public class TuneMenu : MonoBehaviour
         {
             PlayerInfo.Balance -= EKs[Index].Cost;
             UpgradeIndex = Index;
-            CM.ApplyEngine();
+            CM.PaidKitIndex = UpgradeIndex;
+            CM.ApplyEngine(UpgradeIndex);
             CM.SetScreen(0);
         }
     }

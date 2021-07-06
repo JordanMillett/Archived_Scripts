@@ -6,7 +6,7 @@ public class MapOverview : MonoBehaviour
 {
     GameObject MapObject;
     Camera MapOverviewCamera;
-
+    
     void OnEnable()
     {
         if(MapObject == null)

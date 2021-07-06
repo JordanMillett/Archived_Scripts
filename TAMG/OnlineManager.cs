@@ -50,7 +50,7 @@ public class OnlineManager : NetworkManager
 
         //Create new Player
         GameObject NewPlayer = Instantiate(playerPrefab, GameServer.GS.SpawnPoints[GameServer.GS.InitialSpawnLocationIndex], Quaternion.identity);
-        NewPlayer.GetComponent<Player>().playerName = message.name;
+        NewPlayer.GetComponent<MirrorPlayer>().playerName = message.name;
         GameServer.GS.InitialSpawnLocationIndex++;
 
         //Spawn Player Vehicle

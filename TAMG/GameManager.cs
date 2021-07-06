@@ -107,6 +107,9 @@ public class GameManager : NetworkBehaviour
     
         //Debug.Log("Will it Rain? " + WillRain);
         //Debug.Log(GameServer.GS.PossibleEvents.Count); //3011
+
+        //Debug.Log(GameServer.GS.PossibleEvents.Count);
+
         for(int i = 0; i < GameServer.GS.PossibleEvents.Count; i++)//foreach(WorldEvent E in GameServer.GS.PossibleEvents)
         {
             GameServer.GS.PossibleEvents[i].onNewDay();

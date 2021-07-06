@@ -61,8 +61,9 @@ public class Package : NetworkBehaviour
         {
             if(Vector3.Distance(this.transform.position, Destination) < 1f)
             {
-                GameObject.FindWithTag("Target").GetComponent<Target>().Clear();
-                GameObject.FindWithTag("Compass").GetComponent<Compass>().MarkerLocation = Vector3.zero;
+                GameObject.FindWithTag("HUD").GetComponent<HUD>().ClearNavigation();
+                //GameObject.FindWithTag("Target").GetComponent<Target>().Clear();
+                //GameObject.FindWithTag("Compass").GetComponent<Compass>().MarkerLocation = Vector3.zero;
 
                 int Score = 
                     Mathf.RoundToInt
@@ -84,7 +85,8 @@ public class Package : NetworkBehaviour
 
                 PlayerInfo.TotalDeliveries++;
                 PlayerInfo.TotalScore += Score;
-
+                
+                
                 CmdDeliver();
                 //transform.GetComponent<Collider>().enabled = false;
 
@@ -152,6 +154,7 @@ public class Package : NetworkBehaviour
             if(netID.hasAuthority)
             {
                 PlayerInfo.TotalDeliveries++;
+                GameObject.FindWithTag("HUD").GetComponent<HUD>().ClearNavigation();
                 CmdBreak();
             }
         }
@@ -162,6 +165,8 @@ public class Package : NetworkBehaviour
 
     public void Scanned()
     {
+        //GameObject.FindWithTag("HUD").GetComponent<HUD>().Navigate(Destination);
+
         if(EffectRunning)
             StopCoroutine(EffectRoutine);
 

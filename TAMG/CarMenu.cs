@@ -26,45 +26,24 @@ public class CarMenu : MonoBehaviour
     public HornMenu HM;
     public PartMenu PM;
 
-    public VehicleController VC;
-
-    public List<EngineKit> Kits;
+    public Vehicle VC;
 
     public List<Horn> Horns;
 
-    public int PreviewHornIndex = 0;
-    public int HornIndex = 0;
-    
     public int ColorPartIndex = 0;
     public int ColorIndex = 0;
     public int SubColorIndex = 0;
 
-    public List<VehiclePart> NewParts = new List<VehiclePart>();
-    List<VehiclePart> PreviewParts = new List<VehiclePart>();
+    public int PaidHornIndex = 0;
+    public int PaidKitIndex = 0;
+    List<int> PaidPartsIndices = new List<int>();
     
     public TextMeshProUGUI SellLabel;
     int CarValue = 0;
 
     AudioSource ASS;
 
-    Color[] PreviewColors = new Color[5]
-    {
-        new Color(239f/255f,240f/255f,215f/255f,1), //Paint
-        new Color(94f/255f,107f/255f,130f/255f,1),  //Body
-        new Color(248f/255f,229f/255f,116f/255f,1), //Seat
-        new Color(55f/255f,50f/255f,84f/255f,1),    //Tire
-        new Color(155f/255f,156f/255f,130f/255f,1) //Wheel
-    };
-
-    Color[] Colors = new Color[5]
-    {
-        new Color(239f/255f,240f/255f,215f/255f,1), //Paint
-        new Color(94f/255f,107f/255f,130f/255f,1),  //Body
-        new Color(248f/255f,229f/255f,116f/255f,1), //Seat
-        new Color(55f/255f,50f/255f,84f/255f,1),    //Tire
-        new Color(155f/255f,156f/255f,130f/255f,1) //Wheel
-    };
-    
+    Color[] PaidColors = new Color[5];
 
     public void HoverColor(int Index, bool Sub)
     {
@@ -84,9 +63,14 @@ public class CarMenu : MonoBehaviour
             }  
         }
 
+        List<Color> PreviewColors = new List<Color>();      //Make new list of colors and change one color to be the preview
+        foreach(Color Col in PaidColors)
+        {
+            PreviewColors.Add(Col);
+        }
         PreviewColors[ColorPartIndex] = C;
 
-        ApplyColors(PreviewColors);
+        ApplyColors(PreviewColors.ToArray());
     }
 
     public void SetColorMenu(int Index)
@@ -124,7 +108,7 @@ public class CarMenu : MonoBehaviour
             }
         }
 
-        Colors[ColorPartIndex] = C;
+        PaidColors[ColorPartIndex] = C;
 
         //for(int i = 0; i < Colors.Length; i++)
             //PreviewColors[i] = Colors[i];
@@ -145,7 +129,7 @@ public class CarMenu : MonoBehaviour
     public void SetHorn(int Index)
     {
         PlayHorn(Index);
-        HornIndex = Index;
+        VC.MRD.HornIndex = Index;
     }
 
     void Update()
@@ -158,8 +142,15 @@ public class CarMenu : MonoBehaviour
 
     void ApplyColors(Color[] C)
     {
-        //Debug.Log(Mats.Count);
+        for(int i = 0; i < VC.MRD.Colors.Count; i++)
+        {
+            VC.MRD.Colors[i] = C[i];
+        }
 
+        VC.MRD.RpcRefreshVehicle();
+
+        //Debug.Log(Mats.Count);
+        /*
         VC.RecalcMeshes();
 
         Meshes.Clear();
@@ -195,37 +186,6 @@ public class CarMenu : MonoBehaviour
                 }
             }
         }
-
-        //Paint
-        //Body
-        //Seat
-        //Tire
-        //Wheel
-
-
-        /*
-        BodyMats[0].SetColor("_albedo", C[0]); //Paint 
-
-        BodyMats[1].SetColor("_albedo", C[1]); //Body 
-
-        WheelMats[0][2].SetColor("_albedo", C[1]); //Wheel Body 
-        WheelMats[1][2].SetColor("_albedo", C[1]); 
-        WheelMats[2][2].SetColor("_albedo", C[1]); 
-        WheelMats[3][2].SetColor("_albedo", C[1]); 
-
-        WheelMats[4][0].SetColor("_albedo", C[1]); //Steering Wheel
-
-        BodyMats[2].SetColor("_albedo", C[2]); //Seat 
-
-        WheelMats[0][0].SetColor("_albedo", C[3]); //Wheel 
-        WheelMats[1][0].SetColor("_albedo", C[3]);
-        WheelMats[2][0].SetColor("_albedo", C[3]);
-        WheelMats[3][0].SetColor("_albedo", C[3]);
-
-        WheelMats[0][1].SetColor("_albedo", C[4]); //Tire 
-        WheelMats[1][1].SetColor("_albedo", C[4]);
-        WheelMats[2][1].SetColor("_albedo", C[4]);
-        WheelMats[3][1].SetColor("_albedo", C[4]);
         */
     }
 
@@ -240,14 +200,22 @@ public class CarMenu : MonoBehaviour
         VC = GameObject.FindWithTag("Player").GetComponent<Player>().CurrentVehicle;
         AS = VC.CurrentShop;
 
-        TM.Init(this, Kits, GetUpgradeIndex());
+        TM.Init(this, VC.Config.InstallableKits, VC.MRD.KitIndex);
         HM.Init(this, Horns);
         PM.Init(this);
 
+        PaidHornIndex = VC.MRD.HornIndex;
+        PaidKitIndex = VC.MRD.KitIndex;
+
+        PaidPartsIndices.Clear();
         for(int i = 0; i < 3; i++)      //FRONT MIDDLE END
         {
-            NewParts.Add(VC.CurrentParts[i]);
-            PreviewParts.Add(VC.CurrentParts[i]);
+            PaidPartsIndices.Add(VC.MRD.CurrentPartsIndices[i]);
+        }
+
+        for(int i = 0; i < VC.MRD.Colors.Count; i++)      //FRONT MIDDLE END
+        {
+            PaidColors[i] = VC.MRD.Colors[i];
         }
         //SubPartIndices
 
@@ -260,23 +228,25 @@ public class CarMenu : MonoBehaviour
         WheelMats.Add(Wheels[4].materials);
         */
 
+        /*
         for(int i = 0; i < Colors.Length; i++)
             PreviewColors[i] = Colors[i];
 
         ApplyColors(Colors);
+        */
     }
-
+    /*
     int GetUpgradeIndex()
     {
         for(int i = 0; i < Kits.Count; i++)
         {
-            if(VC.EK == Kits[i])
+            if(VC.MRD.EK == Kits[i])
                 return i;
         }
 
         return 0;
     }
-
+    */
     public void ChangeActiveView(int Index)
     {
         AS.SetActiveView(Index);
@@ -294,38 +264,30 @@ public class CarMenu : MonoBehaviour
 
     void OnDisable()
     {
-        ApplyColors(Colors);
-        ApplyEngine();
-        ApplyHorn();
-        ApplyParts();
+        ApplyColors(PaidColors);
+        ApplyEngine(PaidKitIndex);
+        ApplyHorn(PaidHornIndex);
+        ApplyParts(PaidPartsIndices, true);
         SetScreen(0);
 
-        SendInfo();
+        VC.MRD.CmdRefreshVehicle();
     }
 
-    public void ApplyEngine()
+    public void ApplyEngine(int _KitIndex)
     {
-        VC.EK = Kits[TM.UpgradeIndex];
+        VC.MRD.KitIndex = _KitIndex;
     }
 
-    public void ApplyHorn()
+    public void ApplyHorn(int _HornIndex)
     {
-        VC.Horn = Horns[HornIndex].Sound;
-    }
-
-    void SendInfo()
-    {
-        if(VC != null)
-        {
-            VC.GetComponent<CarVarSync>().UpdateInfo(Colors, Kits[TM.UpgradeIndex], HornIndex);
-        }
+        VC.MRD.HornIndex = _HornIndex;
     }
 
     public void SetScreen(int Index)
     {
-        ApplyColors(Colors);
-        for(int i = 0; i < Colors.Length; i++)
-            PreviewColors[i] = Colors[i];
+        ApplyColors(PaidColors);
+        //for(int i = 0; i < Colors.Length; i++)
+            //PreviewColors[i] = Colors[i];
         
         RefreshValue();
 
@@ -350,37 +312,58 @@ public class CarMenu : MonoBehaviour
         }
     }
 
-    void ApplyParts()
+    public void ApplyParts(List<int> _paidPartsIndices, bool PaidFor)
     {
+        //Debug.Log(_paidPartsIndices);
+
         for(int i = 0; i < 3; i++)
         {
-            ApplyPart((VehiclePart.Location) i, NewParts[i], true);
+            VC.MRD.CurrentPartsIndices[i] = _paidPartsIndices[i];
+            //ApplyPart((VehiclePart.Location) i, _paidPartsIndices[i]);
         }
-    }
+        
+        VC.MRD.CmdRefreshVehicle();
 
-    public void ApplyPart(VehiclePart.Location Loc, VehiclePart VP, bool PaidFor)    //Loc = Which tab
-    {
         if(PaidFor)
         {
-            NewParts[(int)Loc] = VP;
-            VC.SetParts(NewParts);
-            for(int i = 0; i < VC.CurrentParts.Count; i++)
+            for(int i = 0; i < 3; i++)
             {
-                VC.CurrentParts[i] = NewParts[i];
+                PaidPartsIndices[i] = _paidPartsIndices[i];
             }
             PM.SetScreen(0);
             SetScreen(6);
-        }else if(PreviewParts[(int)Loc] != VP)
-        {
+        }
+    }
+    /*
+    void ApplyPart(VehiclePart.Location Loc, int PartIndex)    //Loc = Which tab
+    {
+        VC.MRD.CurrentPartsIndices[(int)Loc] = PartIndex;
+
+        
+            
+            //NewPartsIndices[(int)Loc] = PartIndex;
+            //VC.SetParts(NewPartsIndices);
+            /*
+            for(int i = 0; i < 3; i++)
+            {
+                VC.MRD.CurrentPartsIndices[i] = NewParts[i];
+            }*/
+            
+        //}/*else if(PreviewParts[(int)Loc] != PartIndex)
+        //{
+            //VC.MRD.CurrentPartsIndices[i] = PartIndex;
+            /*
             PreviewParts.Clear();
             PreviewParts.Add(NewParts[0]);
             PreviewParts.Add(NewParts[1]);
             PreviewParts.Add(NewParts[2]);
             PreviewParts[(int)Loc] = VP;
-            VC.SetParts(PreviewParts);
-        }
+            VC.SetParts(PreviewParts);*/
+        //}
         
-        ApplyColors(Colors);
+
+        
+        //ApplyColors(Colors);
 
         //VC.InitialzeParts
 
@@ -391,16 +374,16 @@ public class CarMenu : MonoBehaviour
 
 
         //do the thing
-    }
+    //}
 
     public void RefreshValue()
     {   
         CarValue = Mathf.RoundToInt(VC.Config.VehicleBaseValue * 0.75f);
         
-        if(TM.UpgradeIndex != 0)
-            CarValue += Mathf.RoundToInt(Kits[TM.UpgradeIndex].Cost * 0.75f);
-        if(HornIndex != 0)
-            CarValue += Mathf.RoundToInt(Horns[HornIndex].Cost * 0.75f);
+        if(VC.MRD.KitIndex != 0)
+            CarValue += Mathf.RoundToInt(VC.Config.InstallableKits[VC.MRD.KitIndex].Cost * 0.75f);
+        if(VC.MRD.HornIndex != 0)
+            CarValue += Mathf.RoundToInt(VC.Config.InstallableHorns.Horns[VC.MRD.HornIndex].Cost * 0.75f);
 
         SellLabel.text = "+$" + CarValue.ToString();
     }

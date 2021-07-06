@@ -15,18 +15,6 @@ public class PartMenu : MonoBehaviour
 
     bool MenuCreated = false;
 
-    /*
-    public void SetIndex(int Index)
-    {
-        if(PlayerInfo.Balance >= VPs[Index].Cost)
-        {
-            PlayerInfo.Balance -= VPs[Index].Cost;
-            PartIndex = Index;
-            CM.ApplyEngine();
-            CM.SetScreen(0);
-        }
-    }*/
-
     public void Init(CarMenu _CM)
     {
         CM = _CM;
@@ -57,12 +45,20 @@ public class PartMenu : MonoBehaviour
         }
     }
 
-    public void SetPart(VehiclePart VP)  //Apply a purchased part
+    public void SetPart(int Index)  //Apply a purchased part
     {
-        if(PlayerInfo.Balance >= VP.Cost)
+        if(PlayerInfo.Balance >= CM.VC.Config.InstallableParts[Index].Cost)
         {
-            PlayerInfo.Balance -= VP.Cost;
-            CM.ApplyPart(PartLoc, VP, true);
+            PlayerInfo.Balance -= CM.VC.Config.InstallableParts[Index].Cost;
+
+            List<int> NewPartsIndices = new List<int>();
+            foreach(int I in CM.VC.MRD.CurrentPartsIndices)
+            {
+                NewPartsIndices.Add(I);
+            }
+            NewPartsIndices[(int)PartLoc] = Index;
+
+            CM.ApplyParts(NewPartsIndices, true);
         }
     }
 
@@ -72,9 +68,16 @@ public class PartMenu : MonoBehaviour
         SetScreen(Loc + 1);
     }
 
-    public void HoverPart(VehiclePart VP)    //Show part on hover
+    public void HoverPart(int Index)    //Show part on hover
     {
-        CM.ApplyPart(PartLoc, VP, false);
+        List<int> NewPartsIndices = new List<int>();
+        foreach(int I in CM.VC.MRD.CurrentPartsIndices)
+        {
+            NewPartsIndices.Add(I);
+        }
+        NewPartsIndices[(int)PartLoc] = Index;
+
+        CM.ApplyParts(NewPartsIndices, false);
     }
 
     void CreateMenu(VehiclePart.Location Type)
@@ -106,8 +109,8 @@ public class PartMenu : MonoBehaviour
                 RectTransform RT = NewOption.GetComponent<RectTransform>();
                 RT.transform.localScale = Vector3.one;
                 RT.anchoredPosition = new Vector2(0f, (YCount * -35f) + 70f);
-                
-                NewOption.GetComponent<PartOption>().Init(this, CM.VC.Config.InstallableParts[i].PartName, CM.VC.Config.InstallableParts[i], CM.VC.Config.InstallableParts[i].Cost.ToString());
+                //CM.VC.Config.InstallableParts[i] <- old when VP instead of int index
+                NewOption.GetComponent<PartOption>().Init(this, CM.VC.Config.InstallableParts[i].PartName, i, CM.VC.Config.InstallableParts[i].Cost.ToString());
                 YCount++;
             }
         }

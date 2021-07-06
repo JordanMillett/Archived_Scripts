@@ -22,7 +22,8 @@ public static class Settings
 	{
         30,
 		60,
-        144
+        144,
+        240
     };
 
     public enum TextureQuality

@@ -126,6 +126,8 @@ public class SettingsManager : MonoBehaviour
             FSM, 
             Settings.FramerateLimit[Settings._framerateLimitIndex]);
 
+        Application.targetFrameRate = Settings.FramerateLimit[Settings._framerateLimitIndex];
+
         int TextureRes = 0;
         switch(Settings._textureQuality)
         {

@@ -6,6 +6,7 @@ using UnityEngine.SceneManagement;
 
 public class CarVarSync : NetworkBehaviour
 {
+    /*
     public SyncList<Color> Colors = new SyncList<Color>();
 
     [SyncVar]
@@ -25,7 +26,7 @@ public class CarVarSync : NetworkBehaviour
     List<Material[]> Mats = new List<Material[]>();
     List<MeshRenderer> Meshes = new List<MeshRenderer>();
 
-    public List<AudioClip> Horns;
+    public HornSet Horns;
 
     void Awake()
     {
@@ -125,9 +126,10 @@ public class CarVarSync : NetworkBehaviour
         WheelMats[2][1].SetColor("_albedo", Colors[4]);
         WheelMats[3][1].SetColor("_albedo", Colors[4]);
         */
+        /*
         VC.EK = Kit;
 
-        VC.Horn = Horns[HornIndex];
+        VC.Horn = Horns.Horns[HornIndex].Sound;
     }
 
     [Command]
@@ -144,5 +146,5 @@ public class CarVarSync : NetworkBehaviour
         HornIndex = _hornIndex;
 
         TimesUpdated = times;
-    }
+    }*/
 }

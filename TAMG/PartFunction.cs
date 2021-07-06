@@ -9,7 +9,7 @@ public class PartFunction : MonoBehaviour
     public MeshRenderer PartMesh;
     public BoxCollider CarryBounds;
 
-    public void Activate(VehicleController VC)
+    public void Activate(Vehicle VC)
     {
         if(CarryBounds != null)
             VC.CarryBounds = CarryBounds;

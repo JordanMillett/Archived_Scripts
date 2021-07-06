@@ -13,6 +13,11 @@ public class VehicleConfig : ScriptableObject
     public float PitchHigh;
     public float PitchLow;
 
+    public Vector3 CenterOfMass;
+
+    public AudioClip CrashSound;
+
     public List<EngineKit> InstallableKits;
     public List<VehiclePart> InstallableParts;
+    public HornSet InstallableHorns;
 }

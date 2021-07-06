@@ -10,12 +10,12 @@ public class PartOption : MonoBehaviour
 
     PartMenu PM;
 
-    VehiclePart VP = null;
+    int PartIndex = 0;
 
-    public void Init(PartMenu _PM, string Name, VehiclePart _VP, string Value)
+    public void Init(PartMenu _PM, string Name, int _PartIndex, string Value)
     {
         PM = _PM;
-        VP = _VP;
+        PartIndex = _PartIndex;
 
         Label.text = Name;
         Cost.text = "$" + Value;
@@ -24,11 +24,11 @@ public class PartOption : MonoBehaviour
 
     public void Activate()
     {
-        PM.SetPart(VP);
+        PM.SetPart(PartIndex);
     }
 
     public void Hover()
     {
-        PM.HoverPart(VP);
+        PM.HoverPart(PartIndex);
     }
 }

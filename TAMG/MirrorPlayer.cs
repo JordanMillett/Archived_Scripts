@@ -26,6 +26,12 @@ public class MirrorPlayer : NetworkBehaviour
 
     public SyncList<byte> _customFaceData = new SyncList<byte>();
 
+    [SyncVar]
+    public float VoicePitch;
+
+    [SyncVar]
+    public string playerName = "ERRORRRR";
+
     public void Initialize()
     {
         MRD = GetComponent<Player>();
@@ -33,7 +39,7 @@ public class MirrorPlayer : NetworkBehaviour
 
     public void MirrorStart()
     {
-        NameText.text = MRD.playerName;
+        NameText.text = playerName;
         LAC.gameObject.SetActive(true);
         LAC.transform.parent = null;    //unattach name component
     }
@@ -72,8 +78,8 @@ public class MirrorPlayer : NetworkBehaviour
     [ClientRpc]
     void RpcInitializeVoice(float pitch)
     {
-        MRD.VoicePitch = pitch;
-        MRD.Voice.AS.pitch = MRD.VoicePitch;
+        VoicePitch = pitch;
+        MRD.Voice.AS.pitch = VoicePitch;
     }
 
     [ClientRpc]

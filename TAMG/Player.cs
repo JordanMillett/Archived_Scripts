@@ -5,7 +5,7 @@ using System;
 using Mirror;
 using TMPro;
 
-public class Player : NetworkBehaviour
+public class Player : MonoBehaviour
 {
     [System.Serializable]
     public struct Equippable
@@ -40,7 +40,7 @@ public class Player : NetworkBehaviour
     public Transform CamOverride = null;
     public Animator An;
     public BodyPositions BodyInfo;
-    public VehicleController CurrentVehicle;
+    public Vehicle CurrentVehicle;
     public GameObject RagdollPrefab;
     public bool RagdollEnabled = false;
     public float yaw = 0f;
@@ -69,12 +69,6 @@ public class Player : NetworkBehaviour
     public Material[] Mats = new Material[4];
 
     public ASwithBuffer Voice;
-
-    [SyncVar]
-    public float VoicePitch;
-
-    [SyncVar]
-    public string playerName = "ERRORRRR";
 
     public MirrorPlayer MRD;
 
@@ -105,7 +99,7 @@ public class Player : NetworkBehaviour
             MRD.MirrorStart();
         }
 
-        Voice.AS.pitch = VoicePitch;
+        //Voice.AS.pitch = MRD.VoicePitch; called on rpc
     }
     
     void Update()
@@ -266,12 +260,12 @@ public class Player : NetworkBehaviour
         {
             WheelAlpha = Mathf.Lerp(WheelAlpha, Goal, Time.deltaTime * 5f);
             An.SetFloat("Sitting_Direction", WheelAlpha);
-            CurrentVehicle.TurnWheels(WheelAlpha);
+            CurrentVehicle.MRD.CmdSendWheelInfo(WheelAlpha);
 
         }else
         {
             An.SetFloat("Sitting_Direction", Goal);
-            CurrentVehicle.TurnWheels(Goal);
+            CurrentVehicle.MRD.CmdSendWheelInfo(Goal);
         }
 
         
@@ -674,7 +668,7 @@ public class Player : NetworkBehaviour
     {
         if(CurrentVehicle != null)
         {
-            CurrentVehicle.CmdSetOccupied(false);
+            CurrentVehicle.MRD.CmdSetOccupied(false);
             CurrentVehicle.ToggleCarried(false);
 
             r.isKinematic = false;
@@ -699,6 +693,7 @@ public class Player : NetworkBehaviour
                 SetLook(CurrentVehicle.ExitLocation.eulerAngles.y, CurrentVehicle.SavedLook.y);
             }
 
+            CurrentVehicle.RadioHUD.InCar = false;
             CurrentVehicle = null;
 
             if(CarVelocity.magnitude > 10f)     //kill if exit vehicle when going to quick
