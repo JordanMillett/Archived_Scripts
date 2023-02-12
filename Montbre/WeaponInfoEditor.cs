@@ -1,6 +1,6 @@
 ﻿using UnityEngine;
 using UnityEditor;
-
+/*
 [CustomEditor(typeof(WeaponInfo))]
 public class WeaponInfoEditor : Editor
 {
@@ -66,6 +66,7 @@ public class WeaponInfoEditor : Editor
         EditorGUILayout.LabelField("Prefabs", EditorStyles.boldLabel);
         EditorGUILayout.PropertyField(serializedObject.FindProperty("Prefab"), new GUIContent("Prefab"));
         EditorGUILayout.PropertyField(serializedObject.FindProperty("ProjectilePrefab"), new GUIContent("Projectile Prefab"));
+        EditorGUILayout.PropertyField(serializedObject.FindProperty("HitEffectPrefab"), new GUIContent("Hit Effect Prefab"));
         EditorGUILayout.PropertyField(serializedObject.FindProperty("DecalPrefab"), new GUIContent("Decal Prefab"));
         EditorGUILayout.Space();
 
@@ -85,4 +86,4 @@ public class WeaponInfoEditor : Editor
 
         serializedObject.ApplyModifiedProperties();
     }
-}
+}*/

@@ -2,8 +2,9 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public class Emplacement : MonoBehaviour
+public class Emplacement : AI
 {
+    /*
     public WeaponInfo PrimaryInfo;
 
     public Transform Spin;
@@ -25,7 +26,6 @@ public class Emplacement : MonoBehaviour
 
     bool InUse = false;
 
-    Infantry Enemy;
     Plane EnemyPlane;
 
     public bool Occupied = false;
@@ -66,7 +66,7 @@ public class Emplacement : MonoBehaviour
             {
                 FindNewEnemy();
                 if(EnemyPlane == null)
-                    EnemyPlane = AI.FindNewPlane(GunSlot.position, User.U.Team, Equipped.Info.FlakDistanceMax * 1.5f);
+                    EnemyPlane = FindNewPlane(GunSlot.position, User.U.Team, Equipped.Info.FlakDistanceMax * 1.5f);
             }
         }
     }
@@ -74,12 +74,12 @@ public class Emplacement : MonoBehaviour
     void FindNewEnemy()
     {
         if(Enemy != null)
-            if(!AI.LineOfSight(GunSlot.position, Enemy.gameObject, Enemy.Chest.position))
+            if(!LineOfSight(GunSlot.position, Enemy.gameObject, Enemy.Chest.position))
                 Enemy = null;
         
         if(Enemy == null)
         {
-            Enemy = AI.FindNewInfantry(GunSlot.position, User.U.Team, Game.DetectDistance, true);
+            Enemy = FindNewInfantry(GunSlot.position, User.U.Team, Game.DetectDistance, true);
         }
     }
 
@@ -90,7 +90,7 @@ public class Emplacement : MonoBehaviour
             if(Enemy != null)
             {
                 LookAt(Enemy.Chest.position);
-                if(AI.LinedUp(Enemy.Chest.position, GunSlot.position, GunSlot.forward, 5f) && LineOfSight(Enemy))
+                if(LinedUp(Enemy.Chest.position, GunSlot.position, GunSlot.forward, 5f) && LineOfSight(Enemy))
                     Equipped.PullTrigger();
             }
         }else
@@ -104,7 +104,7 @@ public class Emplacement : MonoBehaviour
                 
                 Vector3 Target = EnemyPlane.transform.position + (EnemyPlane.transform.forward * (EnemyPlane.CurrentSpeed/2f));
                 LookAt(Target);
-                if(AI.LinedUp(Target, GunSlot.position, GunSlot.forward, 15f) && Vector3.Distance(this.transform.position, EnemyPlane.transform.position) < Equipped.Info.FlakDistanceMax * 1.25f)
+                if(LinedUp(Target, GunSlot.position, GunSlot.forward, 15f) && Vector3.Distance(this.transform.position, EnemyPlane.transform.position) < Equipped.Info.FlakDistanceMax * 1.25f)
                     Equipped.PullTrigger();
             }
         }
@@ -196,4 +196,5 @@ public class Emplacement : MonoBehaviour
             Occupied = false;
         }
     }
+    */
 }

@@ -75,13 +75,34 @@ public class Logic : MonoBehaviour
         }
     }
 
-    public void Confirm(GameModes GM)
+    public void Confirm()
     {
-        switch(GM)
+        switch(Game.GameMode)
         {
-            case GameModes.Defense : StartCoroutine(Load_Defense()); Defense.HideRing(); Defense.UpdateFlag(1); break;
-            case GameModes.Conquest : StartCoroutine(Load_Conquest()); TeamOneSpawn.UpdateFlag(1); TeamTwoSpawn.UpdateFlag(-1); break;
-            case GameModes.Hill : StartCoroutine(Load_Conquest()); Hill.HideRing(); TeamOneSpawn.UpdateFlag(1); TeamTwoSpawn.UpdateFlag(-1); break;
+            case GameModes.Defense : 
+                Defense.HideRing(); 
+                Defense.UpdateFlag(1); 
+                StartCoroutine(Load_Defense()); 
+            break;
+            case GameModes.Conquest :
+                TeamOneSpawn.Influence = Game.FlipSpawns ? -100 : 100;
+                TeamTwoSpawn.Influence = Game.FlipSpawns ? 100 : -100;
+                TeamOneSpawn.Change();
+                TeamTwoSpawn.Change();
+                TeamOneSpawn.UpdateFlag(Game.FlipSpawns ? -1 : 1); 
+                TeamTwoSpawn.UpdateFlag(Game.FlipSpawns ? -1 : 1); 
+                StartCoroutine(Load_Conquest()); 
+            break;
+            case GameModes.Hill : 
+                Hill.HideRing(); 
+                TeamOneSpawn.Influence = Game.FlipSpawns ? -100 : 100;
+                TeamTwoSpawn.Influence = Game.FlipSpawns ? 100 : -100;
+                TeamOneSpawn.Change();
+                TeamTwoSpawn.Change();
+                TeamOneSpawn.UpdateFlag(Game.FlipSpawns ? -1 : 1); 
+                TeamTwoSpawn.UpdateFlag(Game.FlipSpawns ? -1 : 1); 
+                StartCoroutine(Load_Conquest()); 
+            break;
         }
         Game.Setup = true;
     }
@@ -121,7 +142,7 @@ public class Logic : MonoBehaviour
         int spawned = 0;
         while(spawned < Game.Defense_StartingAllies)
         {
-            Manager.M.SpawnAtPoint(Defense, Game.TeamOne);
+            Manager.M.SpawnInfantry(Defense, Game.TeamOne, false);
             spawned++;
             yield return null;
         }
@@ -130,10 +151,19 @@ public class Logic : MonoBehaviour
     IEnumerator Load_Conquest()
     {
         int spawned = 0;
-        while(spawned < Game.Conquest_TanksPerTeam)
+        while(spawned < Game.Conquest_HeavyTanksPerTeam)
         {
-            Manager.M.CreateTank(Game.TeamOne);
-            Manager.M.CreateTank(Game.TeamTwo);
+            Manager.M.SpawnTank(Game.TeamOne, true);
+            Manager.M.SpawnTank(Game.TeamTwo, true);
+            spawned++;
+            yield return null;
+        }
+        
+        spawned = 0;
+        while(spawned < Game.Conquest_LightTanksPerTeam)
+        {
+            Manager.M.SpawnTank(Game.TeamOne, false);
+            Manager.M.SpawnTank(Game.TeamTwo, false);
             spawned++;
             yield return null;
         }
@@ -141,8 +171,8 @@ public class Logic : MonoBehaviour
         spawned = 0;
         while(spawned < Game.Conquest_TeamSize)
         {
-            Manager.M.SpawnAtPoint(TeamOneSpawn, Game.TeamOne);
-            Manager.M.SpawnAtPoint(TeamTwoSpawn, Game.TeamTwo);
+            Manager.M.SpawnInfantry(Game.FlipSpawns ? TeamTwoSpawn : TeamOneSpawn, Game.TeamOne, false);
+            Manager.M.SpawnInfantry(Game.FlipSpawns ? TeamOneSpawn : TeamTwoSpawn, Game.TeamTwo, false);
             spawned++;
             yield return null;
         }
@@ -150,8 +180,8 @@ public class Logic : MonoBehaviour
         spawned = 0;
         while(spawned < Game.Conquest_PlanesPerTeam)
         {
-            Manager.M.CreateFighterPlane(Game.TeamOne);
-            Manager.M.CreateFighterPlane(Game.TeamTwo);
+            Manager.M.SpawnFighterPlane(Game.TeamOne);
+            Manager.M.SpawnFighterPlane(Game.TeamTwo);
             spawned++;
             yield return null;
         }

@@ -84,12 +84,11 @@ public class Projectile : MonoBehaviour
             }
         }
 
-        //Debug.Log(Vector3.Distance(firePosition, from));
+        bool HitPerson = false;
+        bool HitTank = false;
 
         if(Landed.point != Vector3.zero)
         {
-            bool HitPerson = false;
-
             try
             {
                 
@@ -99,87 +98,93 @@ public class Projectile : MonoBehaviour
                         Target.HitDirection = Dir * 10f;
                     else
                         Target.HitDirection = Dir * 3f;
-                    HitPerson = true;
+                    if(Target)
+                        HitPerson = true;
                     
                     Target.CheckLocation(firePosition);
                 }catch{}
                 
-                if(Info.Explosive)
-                {
-                    try{
-                        Tank Target = Landed.collider.transform.root.gameObject.GetComponent<Tank>();
+            
+                try{
+                    Tank Target = Landed.collider.transform.root.gameObject.GetComponent<Tank>();
+                    if(Info.Explosive)
                         Target.GetComponent<Rigidbody>().AddForceAtPosition(Dir * 100000f * 2.5f, Landed.point);
-                    }catch{}
-                    /*
-                    try{
-                        Plane Target = Landed.collider.transform.root.gameObject.GetComponent<Plane>();
-                        Target.GetComponent<Rigidbody>().AddForceAtPosition(Dir * 100000f * 0.25f, Landed.point);
-                    }catch{}*/
-                }
-
-                /*
-                Damage D = Landed.collider.transform.root.gameObject.GetComponent<Damage>();
-
-                float height = Landed.point.y - D.gameObject.transform.position.y;
-
-                bool Crit = false;
-                if(HitPerson)
-                    if(height >= 1.7f)
-                        Crit = true;
-
-                D.Hurt(Info.Damage, Info.Explosive, Crit, FiredByPlayer);
-                */
+                    if(Target)
+                        HitTank = true;
+                }catch{}
+                
+                try{
+                    Plane Target = Landed.collider.transform.root.gameObject.GetComponent<Plane>();
+                    if(Target)
+                        HitTank = true;
+                }catch{}
 
                 Damage_Part DP = Landed.collider.transform.gameObject.GetComponent<Damage_Part>();
 
                 DP.Hurt(Info.Damage, Info.Explosive, FiredByPlayer);
-
-
-                
-                /*
-                if(HitPerson)
-                {
-                    if(height >= 1.7f)
-                        D.Hurt(Info.Damage * 2, Info.Explosive, FiredByPlayer);
-                    else if(height <= 1f)
-                        D.Hurt(Mathf.RoundToInt(Info.Damage/2f), Info.Explosive, FiredByPlayer);
-                    else
-                        D.Hurt(Info.Damage, Info.Explosive, FiredByPlayer);
-                }else
-                {
-                    D.Hurt(Info.Damage, Info.Explosive, FiredByPlayer);
-                }*/
-                
                 
             }catch{}
             
-            MakeDecal(Landed.point, Landed.normal, Info.DecalScale <= 2f && HitPerson, Info.Explosive);
+            
         }
 
         if(Detonated)
-            MakeDecal(DetonateLocation, Vector3.zero, false, Info.Explosive);
+        {
+            MakeEffect(Landed.point, Landed.normal, Manager.M.HitExplodeAir, true);
+        }else
+        {
+            if (Landed.point != Vector3.zero)
+            {
+                if (HitTank)
+                {
+                    if (Info.Explosive)
+                        MakeEffect(Landed.point, Landed.normal, Manager.M.HitExplode, true);
+                    else
+                        MakeEffect(Landed.point, Landed.normal, Manager.M.HitMetal, false);
+                }
+                else
+                {
+                    if (Info.DecalScale <= 2f && HitPerson)
+                    {
+                        if (Info.Explosive)
+                            MakeEffect(Landed.point, Landed.normal, Manager.M.HitExplode, true);
+                        else
+                            MakeEffect(Landed.point, Landed.normal, Manager.M.HitPerson, false);
+                    }
+                    else
+                    {
+                        if (Info.Explosive)
+                        {
+                            MakeEffect(Landed.point, Landed.normal, Manager.M.HitExplode, true);
+                        }
+                        else
+                        {
+                            MakeEffect(Landed.point, Landed.normal, Manager.M.HitNormal, false);
+                        }
+                    }
+                }
+            }
+        }
 
         Destroy(this.gameObject);
     }
 
-    void MakeDecal(Vector3 Pos, Vector3 Nor, bool Blood, bool Explode)
+    void MakeEffect(Vector3 Pos, Vector3 Nor, GameObject HitPrefab, bool ExplosiveDamage)
     {
-        GameObject Dec = Instantiate(Info.DecalPrefab, Pos, Quaternion.identity);
+        GameObject Dec = Instantiate(HitPrefab, Pos, Quaternion.identity);
+            
         if(Nor != Vector3.zero)
             Dec.transform.rotation = Quaternion.LookRotation(Nor, Vector3.up);
 
-        if(Explode)
-        {
-            Dec.GetComponent<Explosion>().Explode(Info.DecalScale, Info.ExplosiveSize, Info.ExplosiveDamage, Info.DecalVolume, FiredByPlayer);
-        }else
-        {
-            Dec.GetComponent<AudioSource>().volume = (Info.DecalVolume * (Settings._sfxVolume/100f)) * (Settings._masterVolume/100f); 
-            if(Blood)
-                Dec.transform.GetChild(0).GetComponent<VisualEffect>().SetVector4("Color", Color.red);
-            Dec.transform.GetChild(0).GetComponent<VisualEffect>().SetFloat("Size", Info.DecalScale);
-            Dec.GetComponent<Despawn>().DespawnTime *= Info.DecalScale + 2f;
-            Dec.transform.SetParent(GameObject.FindWithTag("Trash").transform);
-        }
+        if(ExplosiveDamage)
+            Dec.GetComponent<Explosion>().Explode(Info.DecalScale, Info.ExplosiveSize, Info.ExplosiveDamage, Info.DecalVolume * 0.75f, FiredByPlayer);
+            
+        Dec.GetComponent<AudioSourceController>().SetVolume(Info.DecalVolume * 0.75f);
+        Dec.GetComponent<AudioSourceController>().PlayRandom();
+        Dec.transform.GetChild(0).GetComponent<VisualEffect>().SetFloat("Size", Info.DecalScale);
+        Dec.GetComponent<Despawn>().DespawnTime *= Info.DecalScale + 2f;
+        Dec.transform.SetParent(GameObject.FindWithTag("Trash").transform);
+        
     }
 
     Vector3 GetShellPositionAtTime(Vector3 firePosition, Vector3 fireDirection, float fireVelocity, float t)

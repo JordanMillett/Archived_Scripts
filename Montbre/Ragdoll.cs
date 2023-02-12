@@ -21,14 +21,11 @@ public class Ragdoll : MonoBehaviour
         for(int i = 0; i < Model.materials.Length; i++)
         {
             Model.materials[i].SetColor("Team", I.U.Team == Game.TeamOne ? Game.FriendlyColor : Game.EnemyColor);
-            Model.materials[i].SetTexture("Shirt", Manager.M.Factions[(int) I.U.Team].Shirt);
-            Model.materials[i].SetColor("BeltColor", Manager.M.Factions[(int) I.U.Team].BeltColor);
-            Model.materials[i].SetColor("ButtonColor", Manager.M.Factions[(int) I.U.Team].ButtonColor);
         }
         
 
         for(int i = 0; i < Model.materials.Length; i++)
-                Model.materials[i].SetFloat("Damage", amount);
+            Model.materials[i].SetFloat("Damage", amount);
 
         if(I.U.Controller)
         {

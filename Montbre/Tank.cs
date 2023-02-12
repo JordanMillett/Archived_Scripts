@@ -4,7 +4,7 @@ using UnityEngine;
 using UnityEngine.VFX;
 using UnityEngine.AI;
 
-public class Tank : MonoBehaviour
+public class Tank : AI
 {
     public enum States
     {
@@ -12,15 +12,11 @@ public class Tank : MonoBehaviour
         LookingAround,
         Fighting,
         GoingToObjective,
-        Blownup
+        Dead
     };
 
-    public Unit U;
-
     public States State;
-
-    Rigidbody r;
-
+    
     public Transform Turret;
     public Transform ToPitch;
     public Transform GunSlot;
@@ -32,36 +28,24 @@ public class Tank : MonoBehaviour
     public Weapon Primary;
     public Weapon Secondary;
 
-    public Unit Enemy;
+    public bool HeavyTank = true;
 
     Vector3 randomLook = Vector3.zero;
 
     public GameObject ExplodeEffect;
+    
+    public Transform CenterOfMass;
 
-    public List<MeshRenderer> MRS;
-    public List<SkinnedMeshRenderer> SMRS;
-    public AudioSource AS;
-
-    Vector3 LastObjective = Vector3.zero;
-
-    public Transform CameraParent;
-    public Transform Target;
-
-    float MaxSpeed = 8f;
-    float MovementForce = 750f;
+    public float MaxSpeed = 8f;
+    public float MovementForce = 750f;
 
     NavMeshPath PathToGoal;
     NavMeshQueryFilter NavInfo;
-
-    float LastGotObjective = -100f;
-    float DecideDelay = 20f;
-
-    int ForgetCounter = 0;
     
     public float yaw = 0f;
     public float pitch = 0f;
 
-    Vector3 HeadHeight = new Vector3(0f, 1.66f, 0f);
+    public Vector3 HeadHeight;
 
     public Transform WheelBoneParent;
     public Transform WheelModelParent;
@@ -70,21 +54,52 @@ public class Tank : MonoBehaviour
     List<Transform> WheelBones = new List<Transform>();
     List<Transform> WheelModels = new List<Transform>();
     List<WheelCollider> Wheels = new List<WheelCollider>();
+    
+    public GameObject ShootExplosion;
+    public float EffectSize = 4f;
+    public float ExplosionSize = 2f;
+    public int ExplosionDamage = 100;
+    public float SoundVolume = 1f;
+    
+    int PathIndex = 0;
+    //bool Lost = false;
+    Vector3 LastPos = Vector3.zero;
 
-    public bool Exploded = false;
-    public GameObject FireEffect;
+    public AudioSourceController Engine;
+    public AudioSourceController TurretRing;
+
+    float EngineAlpha = 0f;
+    float PitchHigh = 1f;
+    float PitchLow = 0.5f;
 
     void Start()
     {
-        r = GetComponent<Rigidbody>();
+        Initialize();
+        StartCoroutine(WaitForGameStart());
+    }
+    
+    IEnumerator WaitForGameStart()
+    {
+        while(!Game.Started)
+            yield return null;
+            
+        UpdateObjective();
+        NavMesh.CalculatePath(this.transform.position + new Vector3(0f, 0.25f, 0f), Objective, NavInfo, PathToGoal);
+        PathIndex = 0;
+        
+        InvokeRepeating("ChangeBehavior", 1f, Random.Range(3f, 5f));
+    }
+
+    public override void Initialize()
+    {
+        base.Initialize();
+        
+        r.centerOfMass = CenterOfMass.localPosition;
         PathToGoal = new NavMeshPath();
-        U = GetComponent<Unit>();
 
         U.Capabilities.AntiInfantry = Primary.Info.UseCase.AntiInfantry || Secondary.Info.UseCase.AntiInfantry ? true : false;
         U.Capabilities.AntiArmor = Primary.Info.UseCase.AntiArmor || Secondary.Info.UseCase.AntiArmor ? true : false;
         U.Capabilities.AntiAir = Primary.Info.UseCase.AntiAir || Secondary.Info.UseCase.AntiAir ? true : false;
-
-        
 
         for(int i = 0; i < WheelBoneParent.childCount; i++)
             WheelBones.Add(WheelBoneParent.GetChild(i));
@@ -98,20 +113,15 @@ public class Tank : MonoBehaviour
         NavInfo = new NavMeshQueryFilter();
         NavInfo.areaMask = 1;
         NavInfo.agentTypeID = -1372625422;
-
-        DecideDelay = Random.Range(15f, 30f);
-        LastObjective = this.transform.position;
+        
+        LastPos = this.transform.position;
+        InvokeRepeating("CheckStuck", 8f, 8f);
 
         Primary.Holder = U;
         Secondary.Holder = U;
 
-        foreach (MeshRenderer MR in MRS)
-            MR.materials[0].SetColor("Team", U.Team == Game.TeamOne ? Game.FriendlyColor : Game.EnemyColor);
-        foreach (SkinnedMeshRenderer SMR in SMRS)
-            SMR.materials[0].SetColor("Team", U.Team == Game.TeamOne ? Game.FriendlyColor : Game.EnemyColor);
-
         if(State == States.Idle)
-            UpdateState(States.Idle);
+            SetState(States.Idle);
 
         //MOVE TO MANAGER SCRIPT TO REG NEW AND DELETE OLD UNITS
         if(U.Team == Game.TeamTwo)
@@ -125,14 +135,32 @@ public class Tank : MonoBehaviour
             Game.Defense_Allies++;
         }
 
-        InvokeRepeating("ChangeBehavior", 1f, Random.Range(3f, 5f));
+        Engine.SetVolume(0f);
+        Engine.Play();
+    }
+
+    public void ShootExplode()
+    {
+        GameObject Dec = Instantiate(ShootExplosion, Primary.FirePosition.position, Quaternion.identity);
+        Dec.transform.rotation = Quaternion.LookRotation(Primary.FirePosition.forward, Vector3.up);
+        Dec.GetComponent<Explosion>().Explode(EffectSize, ExplosionSize, ExplosionDamage, SoundVolume, U.Controller);
+    }
+
+    void Update()
+    {
+        Engine.SetPitch(Mathf.Lerp(PitchLow, PitchHigh, EngineAlpha));
+        if(!Dead)
+            Engine.SetVolume(0.4f);
+        else
+            Engine.SetVolume(0f);
     }
 
     void FixedUpdate()
-    {   
-        UpdateWheelModels();
+    {
+        for(int i = 0; i < Wheels.Count; i++)
+            UpdateWheelModel(Wheels[i], WheelModels[i], WheelBones[i]);
 
-        if(State == States.Blownup)
+        if(State == States.Dead)
         {
             U.Targetable = false;
             Move(0);
@@ -141,23 +169,9 @@ public class Tank : MonoBehaviour
 
         if(!U.Controller)
         {
-
-            if(Enemy != null)
+            if(State == States.Fighting)
             {
-                if(AI.LineOfSight(GunSlot.transform.position, Enemy.gameObject, Enemy.Target.position))
-                {
-                    switch(State)
-                    {
-                        case States.Fighting :      S_Fighting();    break;
-                    }
-                }else
-                {
-                    switch(State)
-                    {
-                        case States.LookingAround :      S_LookingAround();    break;
-                    }
-                }
-                
+                S_Fighting();
             }else
             {
                 switch(State)
@@ -169,27 +183,21 @@ public class Tank : MonoBehaviour
             }
         }
     }
-
-    void UpdateWheelModels()
-    {   
-        for(int i = 0; i < Wheels.Count; i++)
-            UpdateWheelModel(Wheels[i], WheelModels[i], WheelBones[i]);
-
-        float LeftTrack = 0f;
-        float RightTrack = 0f;
-
-        for(int i = 0; i < Wheels.Count/2; i++)
-            LeftTrack += Wheels[i].rpm > 30f ? 1f : Wheels[i].rpm < -30f ? -1f : 0f;
+    
+    void CheckStuck()
+    {
+        if(State != States.GoingToObjective)
+            return;
+            
+        if(Vector3.Distance(this.transform.position, LastPos) < 0.10f)
+        {
+            UpdateObjective();
+            NavMesh.CalculatePath(this.transform.position + new Vector3(0f, 0.25f, 0f), Objective, NavInfo, PathToGoal);
+            PathIndex = 0;
+        }
         
+        LastPos = this.transform.position;
 
-        for(int i = Wheels.Count/2; i < Wheels.Count; i++)
-            RightTrack += Wheels[i].rpm > 30f ? 1f : Wheels[i].rpm < -30f ? -1f : 0f;
-
-        LeftTrack = LeftTrack >= Wheels.Count/2 ? 1.25f : LeftTrack <= -Wheels.Count/2 ? -1.25f: 0f;
-        RightTrack = RightTrack >= Wheels.Count/2 ? 1.25f : RightTrack <= -Wheels.Count/2 ? -1.25f: 0f;
-
-        SMRS[0].materials[0].SetFloat("Speed", LeftTrack);
-        SMRS[1].materials[0].SetFloat("Speed", RightTrack);
     }
 
     void UpdateWheelModel(WheelCollider Wheel, Transform Model, Transform Bone)
@@ -204,39 +212,11 @@ public class Tank : MonoBehaviour
         Model.rotation = Rot;
     }
 
-    Vector3 GetObjective()
-    {
-        Vector3 Objective = Vector3.zero;
-
-        if(Game.GameMode == GameModes.Defense)
-        {
-            Objective = Logic.L.Defense.transform.position;
-            if(U.Team != Game.TeamOne && Logic.L.LastKnownTarget)
-                Objective = Logic.L.LastKnownTarget.transform.position;
-        }else if(Game.GameMode == GameModes.Conquest)
-        {
-            if(Time.time > LastGotObjective + DecideDelay && Vector3.Distance(this.transform.position, LastObjective) < Game.AttackerPushDistance)
-            {
-                Objective = Manager.M.GetConquestObjective(transform.position, U.Team);
-                LastObjective = Objective;
-                LastGotObjective = Time.time;
-            }else
-            {
-                Objective = LastObjective;
-            }
-        }else if(Game.GameMode == GameModes.Hill)
-        {
-            Objective = Logic.L.Hill.transform.position;
-        }
-
-        return Objective;
-    }
-
-    public void Explode()
+    public void Die()
     {   
-        if(!Exploded)
+        if(!Dead)
         {
-            Exploded = true;
+            Dead = true;
 
             if(U.Team == Game.TeamTwo)
             {
@@ -266,7 +246,7 @@ public class Tank : MonoBehaviour
                 
             }else
             {
-                Manager.M.CreateTank(U.Team);
+                Manager.M.DelaySpawnTank(U.Team, HeavyTank);
                 
                 if(U.Team == Game.TeamOne)
                     Game.Conquest_TeamOneTickets--;
@@ -274,26 +254,43 @@ public class Tank : MonoBehaviour
                     Game.Conquest_TeamTwoTickets--;
             }
 
-            UpdateState(States.Blownup);
-            StartCoroutine(Detonate());
+            SetState(States.Dead);
+            
+            if(U.Controller)
+                GameObject.FindWithTag("Camera").GetComponent<Player>().Died();
+                
+            ExplodeEffect.SetActive(true);
+            if(HeavyTank)
+                ExplodeEffect.GetComponent<Explosion>().Explode(6f, 4f, 100, 0.4f, false);
+            else
+                ExplodeEffect.GetComponent<Explosion>().Explode(4f, 3f, 100, 0.4f, false);
+                
+            MeshRenderer[] Meshes = this.gameObject.GetComponentsInChildren<MeshRenderer>();
+            foreach (MeshRenderer M in Meshes)
+            {
+                Material[] DestroyedMaterials = M.materials;
+                for (int i = 0; i < DestroyedMaterials.Length; i++)
+                    DestroyedMaterials[i] = Manager.M.DestroyedMaterial;
+                M.materials = DestroyedMaterials;
+            }
+            
+            SkinnedMeshRenderer[] SkinnedMeshes = this.gameObject.GetComponentsInChildren<SkinnedMeshRenderer>();
+            foreach (SkinnedMeshRenderer M in SkinnedMeshes)
+            {
+                Material[] DestroyedMaterials = M.materials;
+                for (int i = 0; i < DestroyedMaterials.Length; i++)
+                    DestroyedMaterials[i] = Manager.M.DestroyedMaterial;
+                M.materials = DestroyedMaterials;
+            }
+            
+            U.Targetable = false;
+            Move(0);
+
+            Despawn D = this.gameObject.AddComponent(typeof(Despawn)) as Despawn;
+            D.DespawnTime = 10f;
+            //Destroy(this);
+       
         }
-    }
-
-    IEnumerator Detonate()
-    {
-        if(U.Controller)
-            GameObject.FindWithTag("Camera").GetComponent<Player>().FindNewBody(false, false);
-
-        yield return new WaitForSeconds(0.1f);
-        ExplodeEffect.SetActive(true);
-        ExplodeEffect.GetComponent<Explosion>().Explode(6f, 4f, 100, 1, false);
-
-
-        AS.enabled = false;
-
-        Despawn D = this.gameObject.AddComponent(typeof(Despawn)) as Despawn;
-        D.DespawnTime = 10f;
-        Destroy(this);
     }
 
     void S_Idling()
@@ -313,10 +310,22 @@ public class Tank : MonoBehaviour
 
     void S_Fighting()
     {
+        if(!Enemy)
+        {
+            ForgetEnemy();
+            ChangeBehavior();
+            return;
+        }else if(!Enemy.Targetable)
+        {
+            ForgetEnemy();
+            ChangeBehavior();
+            return;
+        }
+        
         Move(0);
 
         LookAt(Enemy.Target.position);
-        if(AI.LinedUp(Enemy.Target.position, GunSlot.transform.position, GunSlot.transform.forward, 5f))
+        if(LinedUp(Enemy.Target.position, GunSlot.transform.position, GunSlot.transform.forward, 5f))
         {
             if(Enemy.Type == Unit.Types.Infantry)
                 FireMG();
@@ -331,15 +340,25 @@ public class Tank : MonoBehaviour
 
         LookAt(randomLook + HeadHeight);
     }
-
+    
     void S_GoingToObjective()
     {
-        if(PathToGoal.corners.Length > 1)
+        if(PathToGoal.status == NavMeshPathStatus.PathComplete)
         {
-            HeadTo(PathToGoal.corners[1]);
-
-            if(Vector3.Distance(this.transform.position, PathToGoal.corners[1]) < 3f)
-                NavMesh.CalculatePath(this.transform.position, GetObjective(), NavInfo, PathToGoal);
+            //Lost = false;
+            if(PathIndex == PathToGoal.corners.Length - 1)
+            {
+                HeadTo(Objective);
+            }else
+            {
+                HeadTo(PathToGoal.corners[PathIndex]);
+                if(Vector3.Distance(this.transform.position, PathToGoal.corners[PathIndex]) < 2f)  //reached path corner
+                    PathIndex++;              //go to next one
+            }
+        }else
+        {
+            //Lost = true;
+            Die();
         }
     }
 
@@ -348,11 +367,24 @@ public class Tank : MonoBehaviour
         Face(Destination);
         LookAt(Destination + HeadHeight);
 
-        Move(1);
+        RaycastHit hit;
+        if (!Physics.Raycast(CenterOfMass.transform.position, this.transform.forward, out hit, 5f, Game.IgnoreSelectMask))
+        {
+            Move(1);
+        }else
+        {
+            Move(0);
+        }
+        
     }
 
     public void Move(int Direction)
     {
+        if(Direction == 1)
+            EngineAlpha = Mathf.Lerp(EngineAlpha, 1f, Time.fixedDeltaTime);
+        else
+            EngineAlpha = Mathf.Lerp(EngineAlpha, 0f, Time.fixedDeltaTime);
+
         if(Direction != 0)
         {
             float lerp = Mathf.Lerp(1f, 0f, r.velocity.magnitude/MaxSpeed);
@@ -360,7 +392,10 @@ public class Tank : MonoBehaviour
             for(int i = 0; i < Wheels.Count; i++)
             {
                 Wheels[i].brakeTorque = 0f;
-                Wheels[i].motorTorque = (MovementForce * (float) Direction) * lerp;
+                if(Wheels[i].isGrounded)
+                    Wheels[i].motorTorque = (MovementForce * (float) Direction) * lerp;
+                else
+                    Wheels[i].motorTorque = 0f;
             }
         }else
         {
@@ -374,22 +409,30 @@ public class Tank : MonoBehaviour
 
     public void LookAt(Vector3 Pos)
     {
-        float PitchSpeed = 1f;
-        float SpinSpeed = 1f;
+        float PitchSpeed = HeavyTank ? 1f : 2f;
+        float SpinSpeed = HeavyTank ? 1f : 2f;
 
         if(U.Controller)
         {
-            PitchSpeed *= 5f;
-            SpinSpeed *= 5f;
+            PitchSpeed = 5f;
+            SpinSpeed = 5f;
         }
 
         Vector3 TargetDirection = Vector3.zero;
         Quaternion Look = Quaternion.identity;
 
+
         //PITCH
         TargetDirection = Pos - ToPitch.transform.position;
         Look = Quaternion.LookRotation(TargetDirection, Turret.transform.forward);
         ToPitch.transform.rotation = Quaternion.Lerp(ToPitch.transform.rotation, Look, Time.fixedDeltaTime * PitchSpeed);
+        //if(U.Controller)
+        //Debug.Log(Quaternion.Angle(ToPitch.transform.rotation, Look));
+        //float ang = Quaternion.Angle(ToPitch.transform.rotation, Look);
+        //ang -= 1f;
+        //ang = Mathf.Max(ang, 0f);
+
+        //TurretRing.SetVolume(Mathf.Lerp(0f, 0.4f, ang/50f));
 
         float Angle = ToPitch.transform.localRotation.x;
         
@@ -410,11 +453,12 @@ public class Tank : MonoBehaviour
         Turret.transform.rotation = Quaternion.Lerp(Turret.transform.rotation, Look, Time.fixedDeltaTime * SpinSpeed);
         Turret.transform.localRotation = new Quaternion(0f, 0f, Turret.transform.localRotation.z, Turret.transform.localRotation.w);
         
+        //if(U.Controller)
+            //Debug.Log(Quaternion.Angle(Turret.transform.rotation, Look));
+        //TurretRing.SetVolume(Mathf.Lerp(0f, 0.4f, Quaternion.Angle(Turret.transform.rotation, Look)));
+
         yaw = Turret.localRotation.eulerAngles.y;
         pitch = Vector3.SignedAngle(-Turret.transform.up, ToPitch.transform.forward, Turret.transform.right);
-        //ToPitch.localRotation.eulerAngles.x;
-        //if(pitch > 180f)
-        //pitch -= 360f;
     }
 
     public void Face(Vector3 Pos)
@@ -431,58 +475,77 @@ public class Tank : MonoBehaviour
         this.transform.rotation = Quaternion.Lerp(this.transform.rotation, Look, Time.fixedDeltaTime * TurnSpeed);
     }
 
-    void ChangeBehavior()
+    public void ChangeBehavior()
     {
-        if(State == States.Blownup)
+        if(State == States.Dead)
             return;
 
         if(!U.Controller)
         {
-            FindNewEnemy();
+            SearchForEnemy();
 
-            if(State != States.Fighting)
-                UpdateState(GetState());
+            CheckObjectiveStatus();
+
+            SetState(GetState());
 
             ChangeRandom();
+        }
+    }
+    
+    States GetState()
+    {
+        //DETERMINED
+        
+        if(Enemy)
+            return States.Fighting;
+            
+        if(FarAway())
+            return States.GoingToObjective;
+        
+        //RANDOM
+        
+        float choice = Random.value;
+  
+        if(choice > 0.4f)
+            return States.LookingAround;
+        else
+            return States.Idle;
+        
+    }
 
-            if(State == States.GoingToObjective)
+    void SearchForEnemy()
+    {
+        if (Enemy)
+            if (!LineOfSight(Enemy.gameObject, Enemy.Target.position))
+                ForgetEnemy();
+
+        if (!Enemy)
+        {
+            Enemy = FindNewUnit();
+
+            if (Enemy)
+                if (Enemy.Team == Game.TeamOne)
+                    Logic.L.LastKnownTarget = Enemy;
+        }
+    }
+    
+    void CheckObjectiveStatus()
+    {
+        if (State == States.GoingToObjective)
+        {
+            if(ObjectiveFlag.Owner == (U.Team == Game.TeamOne ? 1 : -1))
             {
-                NavMesh.CalculatePath(this.transform.position, GetObjective(), NavInfo, PathToGoal);
+                UpdateObjective();
+                NavMesh.CalculatePath(this.transform.position + new Vector3(0f, 0.25f, 0f), Objective, NavInfo, PathToGoal);
+                PathIndex = 0;
             }
         }
     }
 
     void ForgetEnemy()
     {
-        UpdateState(States.Idle);
+        //SetState(States.Idle);
         Enemy = null;
-        ForgetCounter = 0;
-    }
-
-    void FindNewEnemy()
-    {
-        if(Enemy)
-            if(!AI.LineOfSight( GunSlot.transform.position, Enemy.gameObject, Enemy.Target.position))
-                ForgetCounter++;
-        
-        if(ForgetCounter > 3)
-        {
-            ForgetEnemy();
-        }
-        
-        if(!Enemy)
-        {
-            Enemy = AI.FindNewUnit(U, U.Capabilities, true);
-
-            if(Enemy)
-            {
-                UpdateState(States.Fighting);
-
-                if(Enemy.Team == Game.TeamOne)
-                    Logic.L.LastKnownTarget = Enemy;
-            }
-
-        }
     }
 
     void ChangeRandom()
@@ -492,32 +555,7 @@ public class Tank : MonoBehaviour
         randomLook.z += randomLook.z > 0 ? 5f : -5f;
     }
 
-    States GetState()
-    {
-        float choice = Random.value;
-        States chosen = States.Idle;
-
-        if(!Enemy)
-        {
-            if(choice > 0.4f)
-                chosen = States.LookingAround;
-            else
-                chosen = States.Idle;
-
-        }else
-        {
-            if(choice > 0.3f)
-                chosen = States.Fighting;
-        }
-
-        if(FarAway())
-            if(!Enemy)
-                chosen = States.GoingToObjective;
-
-        return chosen;
-    }
-
-    public void UpdateState(States S)
+    public void SetState(States S)
     {
         State = S;
         if(!U.Controller)
@@ -531,16 +569,16 @@ public class Tank : MonoBehaviour
             this.gameObject.name = "Player";
         }
     }
-
+    
     bool FarAway()
     {
         if(U.Team == Game.TeamTwo || Game.GameMode != GameModes.Defense)
         {
-            if(Vector3.Distance(this.transform.position, GetObjective()) > Game.AttackerPushDistance)
+            if(Vector3.Distance(this.transform.position, Objective) > (Game.AttackerPushDistance * 2f))
                 return true;
         }else
         {
-            if(Vector3.Distance(this.transform.position, GetObjective()) > Game.DefenderStayDistance)
+            if(Vector3.Distance(this.transform.position, Objective) > Game.DefenderStayDistance)
                 return true;
         }
 

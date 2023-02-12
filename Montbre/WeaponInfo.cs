@@ -40,14 +40,13 @@ public class WeaponInfo : ScriptableObject
     public float ExplosiveSize = 1f;
     public int ExplosiveDamage = 10;
 
-    public WeaponSoundGroup FireSounds;
+    public SoundGroup FireSounds;
     public float FirePitch = 1f;
     public float DecalVolume = 0.5f;
 
     public int AnimationIndex = 0;
     public GameObject Prefab;
     public GameObject ProjectilePrefab;
-    public GameObject DecalPrefab;
     
     public Weapon CreateWeapon(Transform T, bool Inaccurate)
     {
@@ -66,6 +65,6 @@ public class WeaponInfo : ScriptableObject
 
     public float GetMuzzleVelocity()
     {
-        return Mathf.Clamp(MuzzleVelocity/14f, 30f, 40f); //25f - 35f
+        return Mathf.Clamp(MuzzleVelocity/14f, 35f, 40f); //30f - 40f
     }
 }

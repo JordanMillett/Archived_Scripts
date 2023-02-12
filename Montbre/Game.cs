@@ -2,21 +2,6 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-[System.Serializable]
-public class FactionInfo
-{
-    public Faction Name;
-    public string Prefix;
-    public GameObject Hat;
-
-    public Texture2D Flag;
-    public Texture2D Symbol;
-    public Color BeltColor;
-    public Color ButtonColor;
-    public Texture2D Shirt;
-    public List<InfantryKit> PossibleKits;
-}
-
 public enum Faction
 {
     Germany,
@@ -44,7 +29,7 @@ public static class Game
     public static bool DEBUG_ShowDropPoint = false;
     public static bool DEBUG_ShowCoverPoint = false;
 
-    public static LayerMask IgnoreSelectMask = ~LayerMask.GetMask("Select");
+    public static LayerMask IgnoreSelectMask = ~LayerMask.GetMask("Select", "MapView");
     public static LayerMask UnitOnlyMask = LayerMask.GetMask("Unit");
     public static LayerMask DamageOnlyMask = LayerMask.GetMask("Damage", "Default");
 
@@ -56,19 +41,23 @@ public static class Game
     public static Faction TeamTwo = Faction.Germany;
 
     //Gamemodes
-    public static GameModes GameMode = GameModes.Defense;
+    public static GameModes GameMode = GameModes.Conquest;
     public static bool Setup = false;
-    public static bool PlayerReady = false;
+    public static bool Started = false;
+    //public static bool PlayerReady = false;
+
+    public static bool FlipSpawns = false;
+    public static bool RandomizeLoadouts = false;
 
     public static int   Defense_Allies = 0;
     public static int   Defense_Enemies = 0;
     public static int   Defense_AllyPlanes = 0;
     public static int   Defense_EnemyPlanes = 0;
 
-    public static int   Defense_StartingAllies = 20;
+    public static int   Defense_StartingAllies = 16;
     public static int   Defense_AlliesPerDrop = 5;
 
-    public static int   Defense_Money = 1000;//normally 0
+    public static int   Defense_Money = 400;//normally 0
     public static int   Defense_InfantryKillBonus = 10;
     public static int   Defense_PlaneKillBonus = 40;
     public static int   Defense_TankKillBonus = 60;
@@ -78,19 +67,25 @@ public static class Game
     public static int   Defense_EquipmentCost = 30;
     public static int   Defense_ArtilleryCost = 40;
 
-    public static int   Defense_EnemiesPerDrop = 4;      
+    public static int   Defense_EnemiesPerDrop = 3;      
     public static float Defense_EnemyFighterSpawnRate = 160f;
-    public static float Defense_EnemyCargoSpawnRate = 30f;   
-    public static float Defense_EnemyIncreaseInterval = 180f;
+    public static float Defense_EnemyCargoSpawnRate = 20f;   
+    public static float Defense_EnemyIncreaseInterval = 120f;
 
     public static float Defense_UnitFollowDistance = 8f;
     public static float Defense_StartTime = 0;
     public static float Defense_EndTime = 0;
 
-    public static int   Conquest_TeamSize = 50;
-    public static int   Conquest_PlanesPerTeam = 3;
-    public static int   Conquest_TanksPerTeam = 3;
+    public static int   Conquest_TeamSize = 40;
+    public static int   Conquest_PlanesPerTeam = 4;
+    public static int   Conquest_HeavyTanksPerTeam = 2;
+    public static int   Conquest_LightTanksPerTeam = 2;
     public static int   Conquest_StartingTickets = 500;
+    
+    public static int   Conquest_InfantryRespawnTime = 10;
+    public static int   Conquest_HeavyTankRespawnTime = 25;
+    public static int   Conquest_LightTankRespawnTime = 15;
+    public static int   Conquest_PlaneRespawnTime = 10;
 
     public static int   Conquest_TeamOneTickets = 500;
     public static int   Conquest_TeamTwoTickets = 500;
@@ -108,7 +103,7 @@ public static class Game
     public static float SprintingFOVChange = 10f;
     public static float InteractRange = 1500f;
 
-    public static float AttackerPushDistance = 20f;
+    public static float AttackerPushDistance = 10f;
     public static float DefenderStayDistance = 50f;
 
     public static float DropHeightMin = 100f;
@@ -118,12 +113,12 @@ public static class Game
     public static float FarCargoDropStart = 400f; 
     public static float FarCargoDropEnd = 300f;
 
-    public static void StartGame(GameModes GM)
+    public static void StartGame()
     {
-        GameMode = GM;
-
         if(GameMode == GameModes.Defense)
             Defense_StartTime = Time.time;
+
+        Game.Started = true;
     }
 
     public static void EndGame()
@@ -138,7 +133,7 @@ public static class Game
         Defense_Enemies = 0;
         Defense_AllyPlanes = 0;
         Defense_EnemyPlanes = 0;
-        Defense_Money = 0;
+        Defense_Money = 400;
 
         Defense_EnemiesPerDrop = 4;
 
@@ -146,7 +141,8 @@ public static class Game
         Defense_EndTime = 0;
 
         Setup = false;
-        PlayerReady = false;
+        Started = false;
+        //PlayerReady = false;
     }
 
     public static string GetTimeFormatted(float Time)

@@ -4,7 +4,7 @@ using UnityEngine;
 using TMPro;
 
 public class VersionElement : MonoBehaviour
-{   
+{
     TextMeshProUGUI VersionText;
 
     void Start()
@@ -14,6 +14,9 @@ public class VersionElement : MonoBehaviour
 
     void Update()
     {
-        VersionText.text = "Version " +  Application.version;
+        if(MenuManager.MM.CurrentScreen != "Blank")
+            VersionText.text = "Version " +  Application.version;
+        else
+            VersionText.text = "";
     }
 }

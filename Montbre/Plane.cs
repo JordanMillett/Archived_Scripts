@@ -3,8 +3,15 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.VFX;
 
-public class Plane : MonoBehaviour
+public class Plane : AI
 {
+    public enum PropellerSetup
+	{
+		Body,
+        Wings,
+        Both
+	};
+    
     public enum Types
     {
         Fighter,
@@ -19,14 +26,14 @@ public class Plane : MonoBehaviour
         Strafe,
         Attack,
         Passing,
-        Falling
+        Dead
     };
 
     public States State;
     public Types Type;
     public PlaneInfo PI;
 
-    Rigidbody r;
+    public PropellerSetup PropellerType;
 
     Vector3 RandomFar = Vector3.zero;
     Vector3 RandomNear = Vector3.zero;
@@ -36,14 +43,8 @@ public class Plane : MonoBehaviour
     public List<Weapon> ATs;
     public Transform BailPosition;
 
-    public Transform CameraParent;
-
-    public Unit Enemy;
-
     public Vector3 HeadTarget = Vector3.zero;
     public Vector3 DropTarget = Vector3.zero;
-
-    public GameObject FireEffect;
 
     bool Dropping = false;
     public int SpawnAmount = 0;
@@ -52,29 +53,44 @@ public class Plane : MonoBehaviour
 
     public List<VisualEffect> Engines = new List<VisualEffect>();
     public MeshRenderer MR;
-    public AudioSource AS;
+    public MeshRenderer MR_Left;
+    public MeshRenderer MR_Right;
 
     public float CurrentSpeed = 0f;
 
     bool HitInAir = false;
 
     Vector3 SpawnPosition;
-
-    public bool Exploded = false;
-
-    public Unit U;
+    
+    public GameObject CrashPrefab;
+    public float EffectSize = 4f;
+    public float ExplosionSize = 2f;
+    public int ExplosionDamage = 100;
+    public float SoundVolume = 1f;
 
     void Start()
     {
         Initialize();
 
         InvokeRepeating("ChangeBehavior", 1f, Random.Range(10f, 15f));
+        
+        InvokeRepeating("Bomb", 1f, Random.Range(15f, 20f));
     }
 
-    void Initialize()
+    void Bomb()
     {
-        r = GetComponent<Rigidbody>();
-        U = GetComponent<Unit>();
+        if(Type == Types.Fighter)
+        {
+            if(!U.Controller && State == States.Strafe)
+            {
+                DropBomb();
+            }
+        }
+    }
+
+    public override void Initialize()
+    {
+        base.Initialize();
 
         foreach(Weapon AT in ATs)   //GUN ROCK PLANE AROUND
             AT.Holder = U;
@@ -90,11 +106,12 @@ public class Plane : MonoBehaviour
 
         SpawnPosition = this.transform.position;
 
-        MR.materials[0].SetColor("Team", U.Team == Game.TeamOne ? Game.FriendlyColor : Game.EnemyColor);
-        MR.materials[2].SetTexture("Icon", Manager.M.Factions[(int) U.Team].Symbol);
-        
+        //MR.materials[Type == Types.Fighter ? 2 : 1].SetTexture("Icon", Manager.M.Factions[(int) U.Team].Symbol);
+        //MR_Left.materials[Type == Types.Fighter ? 1 : 2].SetTexture("Icon", Manager.M.Factions[(int) U.Team].Symbol);
+        //MR_Right.materials[Type == Types.Fighter ? 1 : 2].SetTexture("Icon", Manager.M.Factions[(int) U.Team].Symbol);
+
         if(State == States.Idle)
-            UpdateState(States.Idle);
+            SetState(States.Idle);
 
         if(Type == Types.Fighter)
         {
@@ -116,25 +133,43 @@ public class Plane : MonoBehaviour
         if(Col.transform.GetComponent<Bomb>())
             return;
 
-        if(State != States.Falling)
+        if(State != States.Dead)
         {
             HitInAir = true;
-            Explode();
+            if(Col.GetContact(0).thisCollider.transform.root == this.transform)
+                GetComponent<Damage>().LastDamagedPart = Col.GetContact(0).thisCollider.GetComponent<Damage_Part>().Part;
+            else
+                GetComponent<Damage>().LastDamagedPart = Col.GetContact(0).otherCollider.GetComponent<Damage_Part>().Part;
+                
+            Die();
         }
-
-        if(Col.gameObject.isStatic)
+        
+        if(Col.gameObject.CompareTag("Landable") || Col.gameObject.CompareTag("Unmoving"))
         {
+            if(!Landed)
+            {
+                GameObject Dec = Instantiate(CrashPrefab, Col.contacts[0].point, Quaternion.identity);
+                if(Col.contacts[0].normal != Vector3.zero)
+                    Dec.transform.rotation = Quaternion.LookRotation(Col.contacts[0].normal, Vector3.up);
+
+                Dec.GetComponent<Explosion>().Explode(EffectSize, ExplosionSize, ExplosionDamage, SoundVolume, U.Controller);
+            }
             Landed = true;
         }
+        
+
+        
 
         
     }
 
-    public void Explode()
+    public void Die()
     {   
-        if(!Exploded)
+        if(!Dead)
         {
-            Exploded = true;
+            Dead = true;
+            if(U.Controller)
+                GameObject.FindWithTag("Camera").GetComponent<Player>().Died();
 
             if(U.Team == Game.TeamTwo)
             {
@@ -165,7 +200,7 @@ public class Plane : MonoBehaviour
                 }
             }else
             {
-                Manager.M.CreateFighterPlane(U.Team);
+                Manager.M.DelaySpawnFighterPlane(U.Team);
                 
                 if(U.Team == Game.TeamOne)
                     Game.Conquest_TeamOneTickets--;
@@ -173,8 +208,9 @@ public class Plane : MonoBehaviour
                     Game.Conquest_TeamTwoTickets--;
             }
 
-            FireEffect.SetActive(true);
-            UpdateState(States.Falling);
+            for (int i = 0; i < Engines.Count; i++)
+                Engines[i].enabled = true;
+            SetState(States.Dead);
             StartCoroutine(Fall());
         }
     }
@@ -185,19 +221,87 @@ public class Plane : MonoBehaviour
         Dropped.transform.rotation = this.transform.rotation;
         Dropped.GetComponent<Rigidbody>().velocity = r.velocity + (-this.transform.up * 2f);
         Dropped.GetComponent<Rigidbody>().angularVelocity = r.angularVelocity;
+        Dropped.GetComponent<Bomb>().PlayerOwned = U.Controller;
     }
 
     IEnumerator Fall()
     {
-        MR.materials[1].SetInt("Broke", 1);
-
-        while(!Landed)
+        if (PropellerType == PropellerSetup.Body)
         {
-            yield return null;
+            MR.materials[1].SetInt("Broke", 1);
+        }else if (PropellerType == PropellerSetup.Wings)
+        {
+            MR_Left.materials[1].SetInt("Broke", 1);
+            MR_Right.materials[1].SetInt("Broke", 1);
+        }else
+        {
+            MR.materials[1].SetInt("Broke", 1);
+            MR_Left.materials[1].SetInt("Broke", 1);
+            MR_Right.materials[1].SetInt("Broke", 1);
         }
 
-        if(U.Controller)
-            GameObject.FindWithTag("Camera").GetComponent<Player>().FindNewBody(false, false);
+        string LastHit = GetComponent<Damage>().LastDamagedPart;
+        List<string> Names = new List<string> { "Body", "Left", "Right" };
+
+        if(LastHit == "")
+            LastHit = Names[Random.Range(0, Names.Count)];
+
+        if(LastHit == "Left")
+        {
+            Rigidbody Wing = MR_Left.gameObject.AddComponent(typeof(Rigidbody)) as Rigidbody;
+            Wing.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+            Despawn Remove = MR_Left.gameObject.AddComponent(typeof(Despawn)) as Despawn;
+            Remove.DespawnTime = 15f;
+
+            MR_Left.transform.SetParent(GameObject.FindWithTag("Trash").transform);
+            
+            Rigidbody Lift = MR_Right.gameObject.AddComponent(typeof(Rigidbody)) as Rigidbody;
+            Lift.mass = r.mass * 2f;
+            Lift.drag = 0f;
+            r.centerOfMass = Lift.transform.localPosition + (this.transform.up * 2f);
+            FixedJoint Anchor = MR_Right.gameObject.AddComponent(typeof(FixedJoint)) as FixedJoint;
+            Anchor.connectedBody = r;
+        }else if (LastHit == "Right")
+        {
+            Rigidbody Wing = MR_Right.gameObject.AddComponent(typeof(Rigidbody)) as Rigidbody;
+            Wing.collisionDetectionMode = CollisionDetectionMode.ContinuousDynamic;
+            Despawn Remove = MR_Right.gameObject.AddComponent(typeof(Despawn)) as Despawn;
+            Remove.DespawnTime = 15f;
+
+            MR_Right.transform.SetParent(GameObject.FindWithTag("Trash").transform);
+            
+            Rigidbody Lift = MR_Left.gameObject.AddComponent(typeof(Rigidbody)) as Rigidbody;
+            Lift.mass = r.mass * 2f;
+            Lift.drag = 0f;
+            r.centerOfMass = Lift.transform.localPosition + (this.transform.up * 2f);
+            FixedJoint Anchor = MR_Left.gameObject.AddComponent(typeof(FixedJoint)) as FixedJoint;
+            Anchor.connectedBody = r;
+        }
+
+        while (!Landed)
+            yield return null;
+
+        Material[] MR_Destroyed = MR.materials;
+        Material[] MR_Left_Destroyed = MR_Left.materials;
+        Material[] MR_Right_Destroyed = MR_Right.materials;
+
+        MR_Destroyed[0] = Manager.M.DestroyedMaterial;
+        if(LastHit != "Left")
+            MR_Left_Destroyed[0] = Manager.M.DestroyedMaterial;
+        if(LastHit != "Right")
+            MR_Right_Destroyed[0] = Manager.M.DestroyedMaterial;
+
+        MR.materials = MR_Destroyed;
+        MR_Left.materials = MR_Left_Destroyed;
+        MR_Right.materials = MR_Right_Destroyed;
+
+        foreach (VisualEffect V in Engines)
+            if(V)
+                V.SetBool("Landed", true);
+            
+        for (int i = 0; i < Engines.Count; i++)
+            if(Engines[i])
+                Engines[i].gameObject.GetComponent<AudioSourceController>().Stop();
 
         float Begin = Time.time;
         while(Time.time < Begin + 1f)
@@ -207,14 +311,13 @@ public class Plane : MonoBehaviour
                 Begin = Time.time;
         }
 
-        AS.enabled = false;
-
         Begin = Time.time;
         while(Time.time < Begin + 10f)
         {
             yield return null;
             foreach (VisualEffect V in Engines)
-                V.SetFloat("Rate", Mathf.Lerp(0f, 1f, (Time.time - Begin)/10f));
+                if(V)
+                    V.SetFloat("Rate", Mathf.Lerp(0f, 1f, (Time.time - Begin)/10f));
         }
 
         Despawn D = this.gameObject.AddComponent(typeof(Despawn)) as Despawn;
@@ -224,7 +327,7 @@ public class Plane : MonoBehaviour
 
     void FixedUpdate()
     {
-        if(State == States.Falling)
+        if(State == States.Dead)
         {
             U.Targetable = false;
             return;
@@ -282,11 +385,11 @@ public class Plane : MonoBehaviour
     {
         if(!Enemy)
         {
-            UpdateState(States.FlyFar);
+            SetState(States.FlyFar);
             return;
         }
         
-        if(AI.LinedUp(Enemy.transform.position, transform.position, transform.forward, 5f))
+        if(LinedUp(Enemy.transform.position, transform.position, transform.forward, 6f))
         {
             if(Enemy.Type == Unit.Types.Tank)
                 FireAT();
@@ -300,7 +403,7 @@ public class Plane : MonoBehaviour
         }
         else
         {
-            UpdateState(States.FlyFar);
+            SetState(States.FlyFar);
         }
     }
 
@@ -312,23 +415,29 @@ public class Plane : MonoBehaviour
 
         if(!Enemy)
         {
-            UpdateState(States.FlyFar);
+            SetState(States.FlyFar);
             return;
         }
-        
-        Vector3 Target = Enemy.Target.position + (Enemy.transform.forward * Enemy.pla.CurrentSpeed);
 
-        if(Vector3.Distance(this.transform.position, Target) < 350f)
-            if(AI.LinedUp(Target, transform.position, transform.forward, 7.5f))
-                FireMG();
+        //Vector3 Target = Enemy.Target.position + (Enemy.transform.forward * Enemy.pla.CurrentSpeed);
+        //Vector3 Target = Enemy.Target.position + (Enemy.transform.forward * (Enemy.pla.CurrentSpeed));
 
-        if(Vector3.Distance(this.transform.position, Enemy.transform.position) > 150f)
+        Vector3 Target = Enemy.Target.position;
+
+        //Debug.DrawRay(this.transform.position, this.transform.forward * 400f, Color.red);
+        //Debug.DrawLine(this.transform.position, Target, Color.green);
+
+        if(Vector3.Distance(this.transform.position, Target) < 400f)
+            if(LinedUp(Target, transform.position, transform.forward, 5f)) //7.5
+                FireAT();
+
+        if(Vector3.Distance(this.transform.position, Enemy.transform.position) > 100f)
         {
             FlyTo(Target, Vector3.up, PI.Dogfight);
         }
         else
         {
-            UpdateState(States.FlyFar);
+            SetState(States.FlyFar);
         }
     }
 
@@ -355,20 +464,69 @@ public class Plane : MonoBehaviour
         this.transform.rotation = Quaternion.Slerp(this.transform.rotation, newRotation, Time.fixedDeltaTime * G.Turn);
     }
 
-    void ChangeBehavior()
+    public void ChangeBehavior()
     {
-        if(State == States.Falling)
+        if(State == States.Dead)
             return;
 
         if(!U.Controller)
         {
+            SearchForEnemy();
 
-            if(!Enemy)
-                Enemy = AI.FindNewUnit(U, U.Capabilities, false);
-
-            UpdateState(GetState());
+            SetState(GetState());
 
             ChangeRandom();
+        }
+    }
+    
+    States GetState()
+    {
+        if(Type == Types.Fighter)             
+        {
+            if (Enemy)                                
+            {
+                if (Enemy.Type == Unit.Types.Plane)       
+                    return States.Attack;               
+
+                if (Random.value > 0.5f)
+                {
+                    if (State == States.FlyFar)          
+                        return States.Strafe;        
+                    else                                      
+                        return States.FlyFar;               
+                }else
+                {
+                    if(Random.value > 0.5f)                 
+                        return States.FlyNear;
+                    else 
+                        return States.FlyFar;
+                }
+            }else                                       
+            {
+                if(Random.value > 0.5f)                  
+                    return States.FlyNear;
+                else 
+                    return States.FlyFar;
+            }
+        }else
+        {
+            return States.Passing;
+        }
+    }
+    
+    void SearchForEnemy()
+    {
+        if (Type == Types.Fighter)
+        {
+            if (!Enemy)
+            {
+                Enemy = FindNewUnit();
+            }
+            else
+            {
+                if (Enemy.Type == Unit.Types.Infantry || Enemy.Type == Unit.Types.Tank)
+                    Enemy = FindNewUnit();
+            }
         }
     }
 
@@ -391,7 +549,7 @@ public class Plane : MonoBehaviour
             if(CanBail())
             {
                 SpawnAmount--;
-                GameObject Dropped = GameObject.Instantiate(Manager.M.InfantryPrefab, BailPosition.position, Quaternion.identity);
+                GameObject Dropped = GameObject.Instantiate(Manager.M.Factions[(int) U.Team].InfantryPrefab , BailPosition.position, Quaternion.identity);
                 Dropped.GetComponent<Unit>().Team = U.Team;
                 Dropped.GetComponent<Infantry>().Kit = Manager.M.GetKit(U.Team);
                 Dropped.GetComponent<Infantry>().DroppingIn = true;
@@ -427,40 +585,7 @@ public class Plane : MonoBehaviour
         RandomFar.z += RandomFar.z > 0 ? 500f : -500f;
     }
 
-    States GetState()
-    {
-        float choice = Random.value;
-        States chosen = States.Idle;
-
-        if(Type == Types.Fighter)
-        {
-            if(choice > 0.75f)
-                chosen = States.FlyNear;
-            else 
-                chosen = States.FlyFar;
-
-            choice = Random.value;
-
-            if(State == States.FlyFar)  //only strafe if far away
-            {
-                if(Enemy)
-                {
-                    if(choice > 0.75f &&        Enemy.Type == Unit.Types.Infantry || Enemy.Type == Unit.Types.Tank)
-                        chosen = States.Strafe;
-                    if(choice > 0.15f &&        Enemy.Type == Unit.Types.Plane)
-                        chosen = States.Attack;
-                }
-            }
-        }else
-        {
-            chosen = States.Passing;
-        }
-            
-
-        return chosen;
-    }
-
-    public void UpdateState(States S)
+    public void SetState(States S)
     {
         State = S;
         

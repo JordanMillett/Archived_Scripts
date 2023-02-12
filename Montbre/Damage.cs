@@ -14,6 +14,8 @@ public class Damage : MonoBehaviour
     public UnityEvent OnDeath;
     public UnityEvent OnHeal;
 
+    public string LastDamagedPart = "";
+
     void Start()
     {
         Health = MaxHealth;
@@ -31,10 +33,12 @@ public class Damage : MonoBehaviour
         }
     }
 
-    public void Hurt(int Amount, bool AntiArmor, bool Critical, bool PlayerDealt)
+    public void Hurt(int Amount, bool AntiArmor, bool Critical, bool PlayerDealt, string Part)
     {
         if(!Dead)
         {
+            LastDamagedPart = Part;
+
             if(!Armored || AntiArmor)
             {
                 if(Critical)

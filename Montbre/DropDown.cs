@@ -67,6 +67,7 @@ public class DropDown : MonoBehaviour
 
     public void Toggle()
     {
+        MenuManager.MM.PlaySound();
         Open = !Open;
         ListItems.SetActive(Open);
 

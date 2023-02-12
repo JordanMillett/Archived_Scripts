@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using UnityEngine;
 using UnityEngine.AI;
 
-public class Infantry : MonoBehaviour
+public class Infantry : AI
 {   
     public enum States
     {
@@ -11,7 +11,8 @@ public class Infantry : MonoBehaviour
         Wandering,
         LookingAround,
         Fighting,
-        GoingToObjective
+        GoingToObjective,
+        Dead
     };
     
     public enum Orders
@@ -26,23 +27,18 @@ public class Infantry : MonoBehaviour
     public States State;
     public Orders Order;
 
-    public Unit U;
-
     public Animator An;
-
-    public Unit Enemy;
 
     public string Name;
 
     public Transform Chest;
-    public Transform Target;
-    public Transform Eyes;
+    
     public Transform PrimarySlot;
     public Transform SecondSlot;
     public Transform s1;
     public Transform s2;
     public Transform HatLocation;
-
+    
     public Weapon Equipped;
     public SkinnedMeshRenderer SMR;
     public GameObject RagdollPrefab;
@@ -54,7 +50,6 @@ public class Infantry : MonoBehaviour
     public float headLowerLimit = 60f;
     public Vector3 HitDirection;
     public float HealthAlpha = 1f;
-    public bool Dead = false;
     public bool Aiming = false;
     public int MoveStance = 0;
     public GameObject ParachutePrefab;
@@ -65,7 +60,6 @@ public class Infantry : MonoBehaviour
     Vector3 HeadHeight = new Vector3(0f, 1.75f, 0f);
     Vector3 CoverLocation = Vector3.zero;
     Vector3 CoverDirection = Vector3.zero;
-    Vector3 LastObjective = Vector3.zero;
     Vector3 s1Default;
     Vector3 s2Default;
     Vector3 randomOffset = Vector3.zero;
@@ -76,15 +70,13 @@ public class Infantry : MonoBehaviour
     GameObject ParachuteReference;
     NavMeshQueryFilter NavInfo;
     NavMeshPath PathToGoal;
-    Rigidbody r;
 
     float LastAlerted = -100f;
     float AlertTime = 10f;
     float RelaxTime = 30f;
     float LastHurt = -100f;
     float HealTime = 10f;
-    float LastGotObjective = -100f;
-    float DecideDelay = 20f;
+    Vector3 LastPos = Vector3.zero;
     float Stamina = 100f;
     float WalkSpeed = 4f;
     float MovementForce = 200f;
@@ -93,15 +85,17 @@ public class Infantry : MonoBehaviour
     bool Exhausted = false;
     bool CoverTall = false;
     bool SwappingWeapons = false;
-    int LostCounter = 0;
+    int PathIndex = 0;
+    bool Lost = false;
 
     void Start()
     {
+
         Initialize();
 
         if(!DroppingIn)
         {
-            InvokeRepeating("ChangeBehavior", 1f, Random.Range(2f, 3f));
+            StartCoroutine(WaitForGameStart());
         }
         else
         {
@@ -109,11 +103,11 @@ public class Infantry : MonoBehaviour
         }
     }
     
-    void Initialize()
+    public override void Initialize()
     {
-        r = GetComponent<Rigidbody>();
+        base.Initialize();
+        
         PathToGoal = new NavMeshPath();
-        U = GetComponent<Unit>();
 
         Name = Manager.M.GetName(U.Team);
 
@@ -121,22 +115,20 @@ public class Infantry : MonoBehaviour
         NavInfo.areaMask = 1;
         NavInfo.agentTypeID = 0;
 
-        DecideDelay = Random.Range(15f, 30f);
-        LastObjective = this.transform.position;
+        LastPos = this.transform.position;
+        InvokeRepeating("CheckStuck", 3f, 3f);
 
         ChangeRandom();
 
         InvokeRepeating("CheckStamina", 0.1f, 0.1f);
         InvokeRepeating("CheckFall", 0.5f, 0.5f);
         InvokeRepeating("CheckHeal", 1f, 1f);
-
+        
+        /*
         for(int i = 0; i < SMR.materials.Length; i++)
         {
             SMR.materials[i].SetColor("Team", U.Team == Game.TeamOne ? Game.FriendlyColor : Game.EnemyColor);
-            SMR.materials[i].SetTexture("Shirt", Manager.M.Factions[(int) U.Team].Shirt);
-            SMR.materials[i].SetColor("BeltColor", Manager.M.Factions[(int) U.Team].BeltColor);
-            SMR.materials[i].SetColor("ButtonColor", Manager.M.Factions[(int) U.Team].ButtonColor);
-        }
+        }*/
 
         if(Kit)
         {
@@ -147,20 +139,13 @@ public class Infantry : MonoBehaviour
             U.Capabilities.AntiArmor = Primary.Info.UseCase.AntiArmor || Secondary.Info.UseCase.AntiArmor ? true : false;
             U.Capabilities.AntiAir = Primary.Info.UseCase.AntiAir || Secondary.Info.UseCase.AntiAir ? true : false;
 
-
-            GameObject Hat = GameObject.Instantiate(Manager.M.Factions[(int) U.Team].Hat, HatLocation.transform.position, Quaternion.identity);
-            Hat.transform.GetChild(0).GetComponent<MeshRenderer>().material.SetColor("Team", U.Team == Game.TeamOne ? Game.FriendlyColor : Game.EnemyColor);
-            
-            Hat.transform.SetParent(HatLocation);
-            Hat.transform.localPosition = Vector3.zero;
-            Hat.transform.localEulerAngles = Vector3.zero;
+            //HatLocation.transform.GetChild(0).GetChild(0).GetComponent<MeshRenderer>().material.SetColor("Team", U.Team == Game.TeamOne ? Game.FriendlyColor : Game.EnemyColor);
         }
 
         s1Default = s1.localPosition;
         s2Default = s2.localPosition;
 
         SwaySeed = new Vector3(Random.Range(0f, 1000f), Random.Range(0f, 1000f), Random.Range(0f, 1000f));
-
 
         //MOVE TO MANAGER SCRIPT TO REG NEW AND DELETE OLD UNITS
         if(U.Team == Game.TeamTwo)
@@ -175,7 +160,35 @@ public class Infantry : MonoBehaviour
         }
 
         if(State == States.Idle)
-            UpdateState(States.Idle);
+            SetState(States.Idle);
+    }
+    
+    IEnumerator WaitForGameStart()
+    {
+        while(!Game.Started)
+            yield return null;
+            
+        UpdateObjective();
+        NavMesh.CalculatePath(this.transform.position + new Vector3(0f, 0.25f, 0f), Objective, NavInfo, PathToGoal);
+        PathIndex = 0;
+        
+        InvokeRepeating("ChangeBehavior", 1f, Random.Range(2f, 3f));
+    }
+
+    void CheckStuck()
+    {
+        if(State != States.GoingToObjective)
+            return;
+            
+        if(Vector3.Distance(this.transform.position, LastPos) < 0.10f)
+        {
+            UpdateObjective();
+            NavMesh.CalculatePath(this.transform.position + new Vector3(0f, 0.25f, 0f), Objective, NavInfo, PathToGoal);
+            PathIndex = 0;
+        }
+        
+        LastPos = this.transform.position;
+        
     }
 
     void PrepareToDrop()
@@ -207,10 +220,12 @@ public class Infantry : MonoBehaviour
         {
             r.drag = 2f;
             Destroy(ParachuteReference);
+            
+            //Mini.gameObject.SetActive(true);
 
-            UpdateState(States.Idle);
+            SetState(States.Idle);
 
-            InvokeRepeating("ChangeBehavior", 1f, Random.Range(1f, 2f));
+            StartCoroutine(WaitForGameStart());
         }
 
         if(Col.impulse.magnitude > 65f)
@@ -222,7 +237,12 @@ public class Infantry : MonoBehaviour
 
     void FixedUpdate()
     {
-        //AI SYSTEM
+        if(State == States.Dead)
+        {
+            U.Targetable = false;
+            return;
+        }
+        
         U.Targetable = !ParachuteReference;
         
         if(U.Targetable)
@@ -241,6 +261,7 @@ public class Infantry : MonoBehaviour
         if(Equipped)
         {
             Vector3 Swizz = new Vector3(Sway.y, Sway.x, Sway.x * 4f);
+            Swizz *= 0.5f;
 
             if(!Aiming)
             {
@@ -263,6 +284,9 @@ public class Infantry : MonoBehaviour
 
     void Update()
     {
+        if(State == States.Dead)
+            return;
+        
         if(!ParachuteReference)
         {
             //STAMINA SYSTEM
@@ -377,7 +401,7 @@ public class Infantry : MonoBehaviour
             RaycastHit hit;
             if(!Physics.Raycast(this.transform.position + new Vector3(0f, 0.5f, 0f), -Vector3.up, out hit, 5f, Game.IgnoreSelectMask))
             {
-                LostCounter = 5;
+                Lost = true;
                 Die();
             }
         }
@@ -429,26 +453,72 @@ public class Infantry : MonoBehaviour
         }
     }
 
-    void ChangeBehavior()
+    public void ChangeBehavior()
     {
+        if(State == States.Dead)
+            return;
+        
         if(!U.Controller)
         {
-            FindNewEnemy();
+            SearchForEnemy();
 
-            if(State != States.Fighting)
-                UpdateState(GetState());
+            CheckObjectiveStatus();
 
+            SetState(GetState());
+            
             if(State == States.Wandering)
                 ChangeRandom();
+        }
+    }
+    
+    States GetState()
+    {
+        //DETERMINED
+        
+        if(Enemy)
+            return States.Fighting;
 
-            if(State == States.GoingToObjective)
+        if(FarAway())
+            return States.GoingToObjective;
+
+        //RANDOM
+
+        float choice = Random.value;
+
+        if(choice > 0.75f)
+            return States.Wandering;
+        else if(choice > 0.4f)
+            return States.LookingAround;
+        else
+            return States.Idle;
+    }
+    
+    void SearchForEnemy()
+    {
+        if (Enemy)
+            if (!LineOfSight(Enemy.gameObject, Enemy.Target.position))
+                ForgetEnemy();
+
+        if (!Enemy)
+        {
+            Enemy = FindNewUnit();
+
+            if (Enemy)
+                if (Enemy.Team == Game.TeamOne)
+                    Logic.L.LastKnownTarget = Enemy;
+        }
+    }
+    
+    void CheckObjectiveStatus()
+    {
+        if (State == States.GoingToObjective)
+        {
+            if(ObjectiveFlag.Owner == (U.Team == Game.TeamOne ? 1 : -1))
             {
-                NavMesh.CalculatePath(this.transform.position, GetObjective(), NavInfo, PathToGoal);
-                LostCounter = PathToGoal.status == NavMeshPathStatus.PathComplete ? 0 : LostCounter + 1;
-                if(LostCounter == 5)
-                    Die();
+                UpdateObjective();
+                NavMesh.CalculatePath(this.transform.position + new Vector3(0f, 0.25f, 0f), Objective, NavInfo, PathToGoal);
+                PathIndex = 0;
             }
-            
         }
     }
 
@@ -529,8 +599,8 @@ public class Infantry : MonoBehaviour
         if(!Equipped)
             return false;
 
-        if(AI.LinedUp(_pos, (Chest.position + (Chest.up * 0.58f)), Chest.forward, 10f))
-            if(AI.LinedUp(_pos, Chest.position + (Chest.up * 0.58f), Equipped.FirePosition.forward, 4f))
+        if(LinedUp(_pos, (Chest.position + (Chest.up * 0.58f)), Chest.forward, 10f))
+            if(LinedUp(_pos, Chest.position + (Chest.up * 0.58f), Equipped.FirePosition.forward, 4f))
                 return true;
 
         return false;
@@ -565,7 +635,8 @@ public class Infantry : MonoBehaviour
             Secondary.Drop(r.velocity);
 
             if(U.Controller)
-                GameObject.FindWithTag("Camera").GetComponent<Player>().FindNewBody(false, false);
+                GameObject.FindWithTag("Camera").GetComponent<Player>().Died();
+                //GameObject.FindWithTag("Camera").GetComponent<Player>().FindNewBody(false, false);
 
             Damage D = GetComponent<Damage>();
             float amount = (float) D.Health/(float) D.MaxHealth;
@@ -587,7 +658,7 @@ public class Infantry : MonoBehaviour
                 if(U.Team == Game.TeamTwo)
                 {
                     Game.Defense_Enemies--;
-                    if(LostCounter < 5)
+                    if(!Lost)
                         Game.Defense_Money += Game.Defense_InfantryKillBonus;
                 }
                 else
@@ -599,7 +670,7 @@ public class Infantry : MonoBehaviour
             }else if(Game.GameMode == GameModes.Conquest)
             {
                 List<Flag> Targets = Manager.M.GetFlagsOfTeam(U.Team, true);
-                Manager.M.SpawnAtPoint(Targets[Random.Range(0, Targets.Count)], U.Team);
+                Manager.M.DelaySpawnInfantry(Targets[Random.Range(0, Targets.Count)], U.Team, true);
 
                 if(U.Team == Game.TeamOne)
                     Game.Conquest_TeamOneTickets--;
@@ -608,14 +679,22 @@ public class Infantry : MonoBehaviour
 
             }else if(Game.GameMode == GameModes.Hill)
             {
-                Manager.M.SpawnAtPoint(U.Team == Game.TeamOne ? Logic.L.TeamOneSpawn : Logic.L.TeamTwoSpawn, U.Team);
+                if(!Game.FlipSpawns)
+                {
+                    Manager.M.DelaySpawnInfantry(U.Team == Game.TeamOne ? Logic.L.TeamOneSpawn : Logic.L.TeamTwoSpawn, U.Team, true);
+                }else
+                {
+                    Manager.M.DelaySpawnInfantry(U.Team == Game.TeamOne ? Logic.L.TeamTwoSpawn : Logic.L.TeamOneSpawn, U.Team, true);
+                }
+                
                 
                 if(U.Team == Game.TeamOne)
                     Game.Conquest_TeamOneTickets--;
                 else
                     Game.Conquest_TeamTwoTickets--;
             }
-
+            
+            SetState(States.Dead);
             Destroy(this.gameObject);
         }
     }
@@ -649,7 +728,7 @@ public class Infantry : MonoBehaviour
 
     }
 
-    public void UpdateState(States S)
+    public void SetState(States S)
     {
         State = S;
         if(!U.Controller)
@@ -664,31 +743,11 @@ public class Infantry : MonoBehaviour
         }
     }
 
-    States GetState()
-    {
-        float choice = Random.value;
-        States chosen = States.Idle;
-
-        if(choice > 0.75f)
-            chosen = States.Wandering;
-        else if(choice > 0.4f)
-            chosen = States.LookingAround;
-        else
-            chosen = States.Idle;
-        
-        if(FarAway())
-            if(!Enemy)
-                chosen = States.GoingToObjective;
-                
-
-        return chosen;
-    }
-
     bool TryToShoot()
     {
         LastAlerted = Time.time;
 
-        if(AI.LineOfSight(U.Target.position, Enemy.gameObject, Enemy.Target.position))
+        if(LineOfSight(Enemy.gameObject, Enemy.Target.position))
         {
             Rigidbody en = Enemy.transform.GetComponent<Rigidbody>();
             float strength = Mathf.Lerp(0f, 0.75f, Vector3.Distance(Chest.position, Enemy.Target.position)/U.DetectDistance);
@@ -737,6 +796,7 @@ public class Infantry : MonoBehaviour
         else
         {
             Order = Orders.None;
+            ChangeBehavior();
         }
     }
 
@@ -769,6 +829,12 @@ public class Infantry : MonoBehaviour
         if(!Enemy)
         {
             ForgetEnemy();
+            ChangeBehavior();
+            return;
+        }else if(!Enemy.Targetable)
+        {
+            ForgetEnemy();
+            ChangeBehavior();
             return;
         }
 
@@ -786,7 +852,7 @@ public class Infantry : MonoBehaviour
             if(Game.DEBUG_ShowCoverPoint)
                 Debug.DrawRay(CoverLocation, Vector3.up, Color.red, 2f);
             
-            Debug.DrawRay(CoverLocation, Vector3.up, Color.red, 2f);
+            //Debug.DrawRay(CoverLocation, Vector3.up, Color.red, 2f);
             if(Vector3.Distance(this.transform.position, CoverLocation) < 1f)   //if within stop distance of cover then shoot
             {
                 Move(Vector3.zero, false, false);
@@ -826,7 +892,7 @@ public class Infantry : MonoBehaviour
                             CoverLocation = Vector3.zero;
                             CoverDirection = Vector3.zero;
                             Enemy = _uni;
-                            UpdateState(States.Fighting);
+                            SetState(States.Fighting);
                         }
                     }
                 }
@@ -853,7 +919,7 @@ public class Infantry : MonoBehaviour
 
             if(Physics.Raycast(Chest.transform.position, Quaternion.AngleAxis((360f/rays) * i, Vector3.up) * Vector3.forward, out hit, 20f, Game.IgnoreSelectMask))
             {
-                if(hit.transform.gameObject.isStatic)
+                if(hit.transform.gameObject.CompareTag("Landable") || hit.transform.gameObject.CompareTag("Unmoving"))
                 {
                     GameObject check = hit.transform.gameObject;
 
@@ -885,47 +951,76 @@ public class Infantry : MonoBehaviour
 
     void S_GoingToObjective()
     {
-        if(PathToGoal.corners.Length > 1)
+        if(PathToGoal.status == NavMeshPathStatus.PathComplete)
         {
-            HeadTo(PathToGoal.corners[1], true);
-
-            if(Vector3.Distance(this.transform.position + HeadHeight, PathToGoal.corners[1]) < 3f)
-                NavMesh.CalculatePath(this.transform.position, GetObjective(), NavInfo, PathToGoal);
-        }
-    }
-
-    Vector3 GetObjective()
-    {
-        Vector3 Objective = Vector3.zero;
-
-        if(Game.GameMode == GameModes.Defense)
-        {
-            Objective = Logic.L.Defense.transform.position;
-            if(U.Team != Game.TeamOne && Logic.L.LastKnownTarget)
-                Objective = Logic.L.LastKnownTarget.transform.position;
-        }else if(Game.GameMode == GameModes.Conquest)
-        {
-            if(Time.time > LastGotObjective + DecideDelay && Vector3.Distance(this.transform.position, LastObjective) < Game.AttackerPushDistance)
+            Lost = false;
+            if(PathIndex == PathToGoal.corners.Length - 1)
             {
-                Objective = Manager.M.GetConquestObjective(transform.position, U.Team);
-                LastObjective = Objective;
-                LastGotObjective = Time.time;
+                HeadTo(Objective, true);
             }else
             {
-                Objective = LastObjective;
+                HeadTo(PathToGoal.corners[PathIndex], true);
+                if(Vector3.Distance(this.transform.position, PathToGoal.corners[PathIndex]) < 2f)  //reached path corner
+                    PathIndex++;              //go to next one
             }
-        }else if(Game.GameMode == GameModes.Hill)
+        }else
         {
-            Objective = Logic.L.Hill.transform.position;
+            Lost = true;
+            Die();
         }
-
-        return Objective;
     }
 
     void HeadTo(Vector3 Destination, bool Sprint)
     {
-        LookAt(Destination + HeadHeight);
-        Move(GetAvoidVector(), Sprint, false);
+        RaycastHit hit;
+        Quaternion Dir;
+        Vector3 Origin = this.transform.position + new Vector3(0f, 1f, 0f) + (this.transform.forward * -.1f);
+
+        float len = 0.75f;
+
+        float LookOffset = 0f;
+        float MoveOffset = 0f;
+
+        Dir = Quaternion.AngleAxis(55f, this.transform.up);
+        if (Physics.Raycast(Origin, (Dir * this.transform.forward), out hit, len, Game.IgnoreSelectMask))
+        {
+            //Debug.DrawRay(Origin, (Dir * this.transform.forward) * len, Color.red);
+            LookOffset -= (len - hit.distance)/len;
+        }//else
+            //Debug.DrawRay(Origin, (Dir * this.transform.forward) * len, Color.green);
+
+        Dir = Quaternion.AngleAxis(-55f, this.transform.up);
+        if (Physics.Raycast(Origin, (Dir * this.transform.forward), out hit, len, Game.IgnoreSelectMask))
+        {
+            //Debug.DrawRay(Origin, (Dir * this.transform.forward) * len, Color.red);
+            LookOffset += (len - hit.distance)/len;
+        }//else
+            //Debug.DrawRay(Origin, (Dir * this.transform.forward) * len, Color.green);
+            
+            
+        Dir = Quaternion.AngleAxis(25f, this.transform.up);
+        if (Physics.Raycast(Origin, (Dir * this.transform.forward), out hit, 1.25f, Game.IgnoreSelectMask))
+        {
+            //Debug.DrawRay(Origin, (Dir * this.transform.forward) * 1.25f, Color.red);
+            MoveOffset += 1f;
+        }//else
+            //Debug.DrawRay(Origin, (Dir * this.transform.forward) * 1.25f, Color.green);
+            
+        Dir = Quaternion.AngleAxis(-25f, this.transform.up);
+        if (Physics.Raycast(Origin, (Dir * this.transform.forward), out hit, 1.25f, Game.IgnoreSelectMask))
+        {
+            //Debug.DrawRay(Origin, (Dir * this.transform.forward) * 1.5f, Color.red);
+            MoveOffset -= 1f;
+        }//else
+            //Debug.DrawRay(Origin, (Dir * this.transform.forward) * 1.5f, Color.green);  
+        
+
+        Vector3 Turned = Destination + HeadHeight - this.transform.position;
+
+        LookAt(Quaternion.Euler(new Vector3(0f, LookOffset * 120f, 0f)) * Turned + this.transform.position);
+        //LookAt(Destination + HeadHeight);
+        Move(Quaternion.AngleAxis(MoveOffset * -30f, this.transform.up) * this.transform.forward, Sprint, false);
+        //Move(this.transform.forward, Sprint, false);
     }
 
     Weapon GetRightGun(Unit.Types Type)
@@ -946,67 +1041,7 @@ public class Infantry : MonoBehaviour
 
         return null;
     }
-
-    Vector3 GetAvoidVector()
-    {
-        RaycastHit hit;
-        Quaternion Dir;
-        Vector3 Origin = this.transform.position + new Vector3(0f, 1f, 0f) + (this.transform.forward * -.2f);
-
-        bool Left = false;
-        bool Right = false;
-        bool Forward = false;
-
-        Dir = Quaternion.AngleAxis(30f, this.transform.up);
-        if(Physics.Raycast(Origin, (Dir * this.transform.forward), out hit, 2f, Game.UnitOnlyMask))
-            Right = true;
-        Dir = Quaternion.AngleAxis(15f, this.transform.up);
-        if(Physics.Raycast(Origin, (Dir * this.transform.forward), out hit, 2f, Game.UnitOnlyMask))
-            Right = true;
-        
-        Dir = Quaternion.AngleAxis(-30f, this.transform.up);
-        if(Physics.Raycast(Origin, (Dir * this.transform.forward), out hit, 2f, Game.UnitOnlyMask))
-            Left = true;
-        Dir = Quaternion.AngleAxis(-15f, this.transform.up);
-        if(Physics.Raycast(Origin, (Dir * this.transform.forward), out hit, 2f, Game.UnitOnlyMask))
-            Left = true;
-        
-
-        if(Physics.Raycast(Origin, this.transform.forward, out hit, 2f, Game.UnitOnlyMask))
-        {
-            Forward = true;
-        }
-
-        if(Left && Right && Forward)
-        {
-            return Vector3.zero;
-        }
     
-        if(Right)
-        {
-            Dir = Quaternion.AngleAxis(-40f, this.transform.up);
-            return (Dir * this.transform.forward);
-        }
-        if(Left)
-        {
-            Dir = Quaternion.AngleAxis(40f, this.transform.up);
-            return (Dir * this.transform.forward);
-        }
-        if(Forward)
-        {
-            Dir = Quaternion.AngleAxis(40f, this.transform.up);
-            return (Dir * this.transform.forward);
-        }
-
-        return transform.forward;
-    }
-    
-    /// <summary>
-    /// Moves the Unit at a given speed. Can also tell the Unit to crouch still.
-    /// </summary>
-    /// <param name="Direction">The direction to move the Unit</param>
-    /// <param name="Sprint"></param>
-    /// <param name="Crouch"></param>
     public void Move(Vector3 Direction, bool Sprint, bool Crouch)
     {
         if(Sprint && !Exhausted && HealthAlpha > 0.6f)
@@ -1037,7 +1072,6 @@ public class Infantry : MonoBehaviour
 
     void ForgetEnemy()
     {
-        UpdateState(States.Idle);
         Enemy = null;
         CoverLocation = Vector3.zero;
         CoverDirection = Vector3.zero;
@@ -1056,26 +1090,6 @@ public class Infantry : MonoBehaviour
         Move(Vector3.zero, false, false);
     }
 
-    void FindNewEnemy()
-    {
-        if(Enemy)
-            if(!AI.LineOfSight(Chest.position, Enemy.gameObject, Enemy.Target.position))
-                ForgetEnemy();
-        
-        if(!Enemy)
-        {
-            Enemy = AI.FindNewUnit(U, U.Capabilities, true);
-
-            if(Enemy)
-            {
-                UpdateState(States.Fighting);
-
-                if(Enemy.Team == Game.TeamOne)
-                    Logic.L.LastKnownTarget = Enemy;
-            }
-        }
-    }
-
     bool FarAway()
     {
         if(Order == Orders.Follow)
@@ -1083,11 +1097,11 @@ public class Infantry : MonoBehaviour
 
         if(U.Team == Game.TeamTwo || Game.GameMode != GameModes.Defense)
         {
-            if(Vector3.Distance(this.transform.position, GetObjective()) > Game.AttackerPushDistance)
+            if(Vector3.Distance(this.transform.position, Objective) > Game.AttackerPushDistance)
                 return true;
         }else
         {
-            if(Vector3.Distance(this.transform.position, GetObjective()) > Game.DefenderStayDistance)
+            if(Vector3.Distance(this.transform.position, Objective) > Game.DefenderStayDistance)
                 return true;
         }
 

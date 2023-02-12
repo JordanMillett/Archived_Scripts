@@ -58,6 +58,15 @@ public class HUD : MonoBehaviour
         Chosen = true;
     }
 
+    void OnDisable()
+    {
+        Primary.color = AwayColor;
+        Secondary.color = AwayColor;
+        TankView.SetActive(false);
+        CrossHair.SetActive(false);
+        Ammo.text = "";
+    }
+
     void Update()
     {
         if(Chosen)
@@ -68,16 +77,16 @@ public class HUD : MonoBehaviour
 
                 if(Hit > 0)
                 {
-                    AS.PlayOneShot(HitSound, (1f * (Settings._sfxVolume/100f)) * (Settings._masterVolume/100f));
+                    AS.PlayOneShot(HitSound, (0.25f * (Settings._sfxVolume/100f)) * (Settings._masterVolume/100f));
                 }
                 if(Hit < 0)
                 {
-                    AS.PlayOneShot(CriticalSound, (1f * (Settings._sfxVolume/100f)) * (Settings._masterVolume/100f));
+                    AS.PlayOneShot(CriticalSound, (0.25f * (Settings._sfxVolume/100f)) * (Settings._masterVolume/100f));
                 }
 
                 if(Mathf.Abs(Hit) == 2)
                 {
-                    AS.PlayOneShot(KillSound, (1f * (Settings._sfxVolume/100f)) * (Settings._masterVolume/100f));
+                    AS.PlayOneShot(KillSound, (0.25f * (Settings._sfxVolume/100f)) * (Settings._masterVolume/100f));
                 }
                 
                 Hit = 0;
@@ -87,43 +96,51 @@ public class HUD : MonoBehaviour
             }
 
             //DYNAMIC CHANGING HUD
-            if(Player.Controlled.Type == Unit.Types.Infantry)
+            if (Player.Controlled)
             {
-                TankView.SetActive(false);
-                CrossHair.SetActive(!Input.GetMouseButton(1));
+                if (Player.Controlled.Type == Unit.Types.Infantry)
+                {
+                    //Debug.Log("INFANTRY");
+                    TankView.SetActive(false);
+                    CrossHair.SetActive(!Input.GetMouseButton(1));
 
-                if(Player.Controlled.inf.Equipped)
-                {
-                    Ammo.text = Player.Controlled.inf.Equipped.CurrentMagazine + "/" + Player.Controlled.inf.Equipped.Info.MagazineSize;
-                    Primary.color = Player.Controlled.inf.Equipped == Player.Controlled.inf.Primary ? OutColor : AwayColor;
-                    Secondary.color = Player.Controlled.inf.Equipped == Player.Controlled.inf.Secondary ? OutColor : AwayColor;
-                }else
-                {
-                    Ammo.text = "";
-                    Primary.color = AwayColor;
-                    Secondary.color = AwayColor;
+                    if (Player.Controlled.inf.Equipped)
+                    {
+                        Ammo.text = Player.Controlled.inf.Equipped.CurrentMagazine + "/" + Player.Controlled.inf.Equipped.Info.MagazineSize;
+                        Primary.color = Player.Controlled.inf.Equipped == Player.Controlled.inf.Primary ? OutColor : AwayColor;
+                        Secondary.color = Player.Controlled.inf.Equipped == Player.Controlled.inf.Secondary ? OutColor : AwayColor;
+                    }
+                    else
+                    {
+                        Ammo.text = "";
+                        Primary.color = AwayColor;
+                        Secondary.color = AwayColor;
+                    }
+
                 }
-                
-            }else if(Player.Controlled.Type == Unit.Types.Tank)
-            {
-                Primary.color = Player.Controlled.tan.PlayerUsingPrimary ? OutColor : AwayColor;
-                Secondary.color = !Player.Controlled.tan.PlayerUsingPrimary ? OutColor : AwayColor;
+                else if (Player.Controlled.Type == Unit.Types.Tank)
+                {
+                    //Debug.Log("TANK");
+                    Primary.color = Player.Controlled.tan.PlayerUsingPrimary ? OutColor : AwayColor;
+                    Secondary.color = !Player.Controlled.tan.PlayerUsingPrimary ? OutColor : AwayColor;
 
-                //P.CurrentFOV/40f;
-                TankView.GetComponent<RectTransform>().transform.localScale = new Vector3(70f/P.CurrentFOV, 70f/P.CurrentFOV, 70f/P.CurrentFOV);
-                TankView.SetActive(true);
-                CrossHair.SetActive(false);
-                Ammo.text = "";
-            }else if(Player.Controlled.Type == Unit.Types.Plane)
-            {
-                Primary.color = Player.Controlled.pla.PlayerUsingPrimary ? OutColor : AwayColor;
-                Secondary.color = !Player.Controlled.pla.PlayerUsingPrimary ? OutColor : AwayColor;
+                    //P.CurrentFOV/40f;
+                    TankView.GetComponent<RectTransform>().transform.localScale = new Vector3(70f / P.CurrentFOV, 70f / P.CurrentFOV, 70f / P.CurrentFOV);
+                    TankView.SetActive(true);
+                    CrossHair.SetActive(false);
+                    Ammo.text = "";
+                }
+                else if (Player.Controlled.Type == Unit.Types.Plane)
+                {
+                    Primary.color = Player.Controlled.pla.PlayerUsingPrimary ? OutColor : AwayColor;
+                    Secondary.color = !Player.Controlled.pla.PlayerUsingPrimary ? OutColor : AwayColor;
 
-                TankView.SetActive(false);
-                CrossHair.SetActive(false);
-                Ammo.text = "";
+                    TankView.SetActive(false);
+                    CrossHair.SetActive(false);
+                    Ammo.text = "";
+                }
             }
-
+            
             //GAMEMODE HUD
             if(Game.GameMode == GameModes.Defense)
             {

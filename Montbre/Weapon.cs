@@ -150,8 +150,8 @@ public class Weapon : MonoBehaviour
             }
 
             AS.pitch = Info.FirePitch;
-            AS.PlayOneShot(Info.FireSounds.Clips[Random.Range(0, Info.FireSounds.Clips.Count)], (0.5f * (Settings._sfxVolume/100f)) * (Settings._masterVolume/100f));
-
+            AS.PlayOneShot(Info.FireSounds.GetRandom(), (Info.FireSounds.Volume * (Settings._sfxVolume/100f)) * (Settings._masterVolume/100f));
+            
             Flash = true;
             
             if(CurrentMagazine > 0 || Info.MagazineSize == 0)
@@ -186,8 +186,11 @@ public class Weapon : MonoBehaviour
                     //Holder.inf.transform.localEulerAngles += new Vector3(0f, CurrentTurnOffset.y * 0.1f, 0f);
                 }else if(Holder.Type == Unit.Types.Tank)
                 {
-                    if(this == Holder.tan.Primary)
+                    if (this == Holder.tan.Primary)
+                    {
+                        Holder.tan.ShootExplode();
                         Holder.GetComponent<Rigidbody>().AddForceAtPosition(-FirePosition.forward * 100000f, FirePosition.position);
+                    }
                 }
             }
 
@@ -199,11 +202,21 @@ public class Weapon : MonoBehaviour
     {
         if(Info.Automatic)  //Recoil before shot to offset each round, first shots are accurate
         {
-            float maxBack = MaxBackDistance * Info.RecoilMultiplier;
-            float maxTurn = MaxTurnDistance * Info.RecoilMultiplier;
-            CurrentBackDistance = maxBack;
-            CurrentTurnDistance = (Time.time - t) > Info.AccurateTime ? maxTurn : Mathf.Lerp(maxTurn * 0.2f, maxTurn, (Time.time - t)/Info.AccurateTime);
-            CurrentTurnOffset = new Vector3(Random.Range(-1f, 0f), Random.Range(-1f, 1f), Random.Range(-1f, 1f));
+            if (Info.AccurateTime != 0f)
+            {
+                float maxBack = MaxBackDistance * Info.RecoilMultiplier;
+                float maxTurn = MaxTurnDistance * Info.RecoilMultiplier;
+                CurrentBackDistance = maxBack;
+                CurrentTurnDistance = (Time.time - t) > Info.AccurateTime ? maxTurn : Mathf.Lerp(maxTurn * 0.2f, maxTurn, (Time.time - t) / Info.AccurateTime);
+                CurrentTurnOffset = new Vector3(Random.Range(-1f, 0f), Random.Range(-1f, 1f), Random.Range(-1f, 1f));
+            }else
+            {
+                float maxBack = MaxBackDistance * Info.RecoilMultiplier;
+                float maxTurn = MaxTurnDistance * Info.RecoilMultiplier;
+                CurrentBackDistance = maxBack;
+                CurrentTurnDistance = maxTurn;
+                CurrentTurnOffset = new Vector3(Random.Range(-1f, 0f), Random.Range(-1f, 1f), Random.Range(-1f, 1f));
+            }
             UpdateModel();
         }
 
@@ -227,7 +240,11 @@ public class Weapon : MonoBehaviour
 
         Fired.transform.SetParent(GameObject.FindWithTag("Trash").transform);
         
-        Fired.GetComponent<Projectile>().FiredByPlayer = Holder.Controller;
+        if(Holder)
+            Fired.GetComponent<Projectile>().FiredByPlayer = Holder.Controller;
+        else
+            Fired.GetComponent<Projectile>().FiredByPlayer = false;
+            
         Fired.GetComponent<Projectile>().Launch(AimVector, Info);
     }
 

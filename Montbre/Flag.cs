@@ -13,10 +13,13 @@ public class Flag : MonoBehaviour
     public GameObject Model;
 
     public int Owner = 0;
+    public bool Contested = false;
     int FlagShown = 0;
 
     List<Unit> Friendlies = new List<Unit>();
     List<Unit> Enemies = new List<Unit>();
+
+    bool Hidden = false;
 
     public void HideRing()
     {
@@ -28,6 +31,8 @@ public class Flag : MonoBehaviour
         Effect.SetActive(false);
         Status.SetActive(false);
         Model.SetActive(false);
+
+        Hidden = true;
     }
 
     public void ShowEffect()
@@ -37,6 +42,8 @@ public class Flag : MonoBehaviour
         
         Status.SetActive(true);
         Model.SetActive(true);
+
+        Hidden = false;
     }
 
     void Start()
@@ -52,8 +59,21 @@ public class Flag : MonoBehaviour
         InvokeRepeating("Change", 0f, 0.1f);
     }
 
-    void Change()
+    public void Change()
     {
+        if(Hidden)
+            return;
+        
+        if(!Influenceable)
+        {
+            if(Influence != 0)
+                SetFlag(Influence > 0 ? 1 : -1);
+            
+            Model.transform.GetComponent<MeshRenderer>().materials[1].SetFloat("Raise", Mathf.Abs((Influence)/200f) * 2f);
+            Status.transform.GetComponent<MeshRenderer>().material.SetFloat("Influence", (Influence + 100f)/200f);
+            return;
+        }
+
         for(int i = Friendlies.Count - 1; i >= 0; i--)
             if(!Friendlies[i])
                 Friendlies.RemoveAt(i);
@@ -62,22 +82,47 @@ public class Flag : MonoBehaviour
             if(!Enemies[i])
                 Enemies.RemoveAt(i);
 
-        int Difference = Mathf.Clamp((Friendlies.Count - Enemies.Count), -1, 1);
-        Influence = Mathf.Clamp(Influence + Difference, -100, 100);
-        
-        if(Owner == 0)
+        //int Difference = Mathf.Clamp((Friendlies.Count - Enemies.Count), -1, 1);
+        //Influence = Mathf.Clamp(Influence + Difference, -100, 100);
+
+        if (Owner == 0)
         {
-            if(Influence == 100)
-                Owner = 1;
-            else if(Influence == -100)
-                Owner = -1;
+            if(Friendlies.Count > 0 && Enemies.Count == 0)
+                Influence = Mathf.Clamp(Influence + 1, -100, 100);
+            if(Friendlies.Count == 0 && Enemies.Count > 0)
+                Influence = Mathf.Clamp(Influence - 1, -100, 100);
+                
+            if(Friendlies.Count == 0 && Enemies.Count == 0)
+                if(Influence != 0)
+                    Influence = Mathf.Clamp(Influence + (Influence > 0 ? -1 : 1), -100, 100);
+            
+            if (Influence == 100)
+                SetOwner(1);
+            else if (Influence == -100)
+                SetOwner(-1);
         }else
         {
-            if(Influence > 0)
-                Owner = 1;
-            else if(Influence < -0)
-                Owner = -1;
+            if(Friendlies.Count > 0 && Enemies.Count == 0)
+                Influence = Mathf.Clamp(Influence + 2, -100, 100);
+            if(Friendlies.Count == 0 && Enemies.Count > 0)
+                Influence = Mathf.Clamp(Influence - 2, -100, 100);
+            
+            if(Friendlies.Count == 0 && Enemies.Count == 0)
+                Influence = Mathf.Clamp(Influence + (Owner == 1 ? 2 : -2), -100, 100);
+            
+            if (Influence > 0)
+                SetOwner(1);
+            else if (Influence < 0)
+                SetOwner(-1);
         }
+
+        Contested = false;
+        if(Owner == 1)
+            if(Enemies.Count > 0)
+                Contested = true;
+        if(Owner == -1)
+            if(Friendlies.Count > 0)
+                Contested = true;
 
         if(Influence != 0)
             SetFlag(Influence > 0 ? 1 : -1);
@@ -85,6 +130,16 @@ public class Flag : MonoBehaviour
         Model.transform.GetComponent<MeshRenderer>().materials[1].SetFloat("Raise", Mathf.Abs((Influence)/200f) * 2f);
         Status.transform.GetComponent<MeshRenderer>().material.SetFloat("Influence", (Influence + 100f)/200f);
         
+    }
+    
+    void SetOwner(int Index)
+    {
+        if(Owner != Index)
+        {
+            Owner = Index;
+            if(Game.Started)
+                Debug.Log((Index == 1 ? Game.TeamOne.ToString() : Game.TeamTwo.ToString()) + " Captured " + this.gameObject.name);
+        }
     }
     
     void SetFlag(int Value)
@@ -141,4 +196,10 @@ public class Flag : MonoBehaviour
             }catch{}
         }
     }
+    
+    void OnDrawGizmos()
+    {   
+        Gizmos.color = new Color(1f, 1f, 1f, 0.5f);
+        Gizmos.DrawSphere(this.transform.position, 0.25f);
+    }  
 }

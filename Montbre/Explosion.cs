@@ -27,13 +27,15 @@ public class Explosion : MonoBehaviour
                     Infantry Target = hitColliders[i].transform.gameObject.GetComponent<Infantry>();
                     Target.HitDirection = (Target.Chest.position - this.transform.position).normalized * 8f;
                 }catch{}
-                hitColliders[i].transform.gameObject.GetComponent<Damage>().Hurt(DamageAmount, true, false, PlayerCaused);
+                hitColliders[i].transform.gameObject.GetComponent<Damage>().Hurt(DamageAmount, true, false, PlayerCaused, "");
             }
 
             i++;
         }
-
-        GetComponent<AudioSource>().volume = (Volume * (Settings._sfxVolume/100f)) * (Settings._masterVolume/100f);
+        
+        GetComponent<AudioSourceController>().SetVolume(Volume);
+        GetComponent<AudioSourceController>().PlayRandom();
+        //GetComponent<AudioSource>().volume = (Volume * 0.25f * (Settings._sfxVolume/100f)) * (Settings._masterVolume/100f);
         transform.GetChild(0).GetComponent<VisualEffect>().SetFloat("Size", EffectSize);
         GetComponent<Despawn>().DespawnTime *= EffectSize + 2f;
         transform.SetParent(GameObject.FindWithTag("Trash").transform);

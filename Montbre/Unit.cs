@@ -34,6 +34,7 @@ public class Unit : MonoBehaviour
     public float DetectDistance;
 
     public bool Targetable = true;
+    public bool Controllable = true;
 
     //enum for type and also pass look and move controls into it
     //transition using cool digital effect to move between them, freeze the game and start the transition
@@ -93,7 +94,7 @@ public class Unit : MonoBehaviour
     {
         inf = GetComponent<Infantry>();
         Target = inf.Target;
-        CameraParent = inf.Eyes;
+        CameraParent = inf.CameraParent;
         DetectDistance = Game.DetectDistance;
     }
 
@@ -312,12 +313,12 @@ public class Unit : MonoBehaviour
         pla = GetComponent<Plane>();
         Target = pla.transform;
         CameraParent = pla.CameraParent;
-        DetectDistance = 1000f;
+        DetectDistance = 3000f;
     }
 
     void pla_Look()
     {
-        if(pla.Exploded)
+        if(pla.Dead)
             return;
             
         Vector3 PlaneRoll = pla.transform.up;
@@ -350,7 +351,7 @@ public class Unit : MonoBehaviour
 
     void pla_Other()
     {
-        if(pla.Exploded)
+        if(pla.Dead)
             return;
 
         //Zoom
@@ -388,9 +389,17 @@ public class Unit : MonoBehaviour
         {
             switch(Type)
             {
-                case Types.Infantry : inf_Look(); break;
-                case Types.Plane : pla_Look(); break;
-                case Types.Tank : tan_Look();break;
+                case Types.Infantry : 
+                    inf_Look(); 
+                break;
+                case Types.Plane : 
+                    if(!pla.Dead)
+                        pla_Look(); 
+                    break;
+                case Types.Tank : 
+                    if(!tan.Dead) 
+                        tan_Look();
+                break;
             }
         }
     }
@@ -401,9 +410,17 @@ public class Unit : MonoBehaviour
         {
             switch(Type)
             {
-                case Types.Infantry : inf_Other(); break;
-                case Types.Plane : pla_Other(); break;
-                case Types.Tank : tan_Other();break;
+                case Types.Infantry : 
+                    inf_Other(); 
+                break;
+                case Types.Plane : 
+                    if(!pla.Dead)
+                        pla_Other(); 
+                    break;
+                case Types.Tank : 
+                    if(!tan.Dead) 
+                        tan_Other();
+                break;
             }
         }
     }
@@ -414,9 +431,17 @@ public class Unit : MonoBehaviour
         {
             switch(Type)
             {
-                case Types.Infantry : inf_Move(); break;
-                case Types.Plane : pla_Move(); break;
-                case Types.Tank : tan_Move(); break;
+                case Types.Infantry : 
+                    inf_Move(); 
+                break;
+                case Types.Plane : 
+                    if(!pla.Dead)
+                        pla_Move(); 
+                    break;
+                case Types.Tank : 
+                    if(!tan.Dead) 
+                        tan_Move();
+                break;
             }
         }
     }
@@ -427,9 +452,17 @@ public class Unit : MonoBehaviour
         {
             switch(Type)
             {
-                case Types.Infantry : inf.Fire(); break;
-                case Types.Plane : if(pla.PlayerUsingPrimary) pla.FireAT(); else pla.FireMG(); break;
-                case Types.Tank : if(tan.PlayerUsingPrimary) tan.FireCannon(); else tan.FireMG(); break;
+                case Types.Infantry : 
+                    inf.Fire(); 
+                break;
+                case Types.Plane : 
+                    if(!pla.Dead)
+                        if(pla.PlayerUsingPrimary) pla.FireAT(); else pla.FireMG();
+                    break;
+                case Types.Tank : 
+                    if(!tan.Dead) 
+                        if(tan.PlayerUsingPrimary) tan.FireCannon(); else tan.FireMG();
+                break;
             }
         }
     }
@@ -440,9 +473,17 @@ public class Unit : MonoBehaviour
         {
             switch(Type)
             {
-                case Types.Infantry : inf.Die(); break;
-                case Types.Plane : pla.Explode(); break;
-                case Types.Tank : tan.Explode(); break;
+                case Types.Infantry : 
+                    inf.Die(); 
+                break;
+                case Types.Plane : 
+                    if(!pla.Dead)
+                        pla.Die(); 
+                    break;
+                case Types.Tank : 
+                    if(!tan.Dead) 
+                        tan.Die();
+                break;
             }
         }
     }

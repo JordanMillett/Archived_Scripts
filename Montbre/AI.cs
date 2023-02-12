@@ -2,9 +2,35 @@
 using System.Collections.Generic;
 using UnityEngine;
 
-public static class AI
+public class AI : MonoBehaviour
 {
-    public static bool LinedUp(Vector3 _pos, Vector3 _org, Vector3 _for, float _fov)
+    //Dont need to see
+    [HideInInspector]
+    public Unit U;
+    [HideInInspector]
+    public Rigidbody r;
+    [HideInInspector]
+    public bool Dead = false;
+    [HideInInspector]
+    public Vector3 Objective;
+    
+    //Need to set up
+    public Transform LineOfSightEyes;
+    public Transform Target;
+    public Transform CameraParent;
+    public bool NeedsLineOfSight;
+
+    //Useful to see
+    public Flag ObjectiveFlag;
+    public Unit Enemy;
+
+    public virtual void Initialize()
+    {
+        U = GetComponent<Unit>();
+        r = GetComponent<Rigidbody>();
+    }
+    
+    public bool LinedUp(Vector3 _pos, Vector3 _org, Vector3 _for, float _fov)
     {
         Vector3 targetDirection = Vector3.zero;
 
@@ -17,47 +43,60 @@ public static class AI
 
         return angle < _fov;
     }
-
-    public static Infantry FindNewInfantry(Vector3 _pos, Faction _fac, float _dis, bool _los)
+    
+    public void UpdateObjective()
     {
-        Collider[] near = Physics.OverlapSphere(_pos, _dis * 2f);
-        foreach(Collider col in near)
+        if(Game.GameMode == GameModes.Defense)
         {
-            try 
-            {   
-                Infantry I = col.transform.gameObject.GetComponent<Infantry>();
+            ObjectiveFlag = Logic.L.Defense;
 
-                if(I != null)
-                    if(I.U.Team != _fac)
-                        if(I.U.Targetable)
-                            if(!_los || LineOfSight(_pos, I.gameObject, I.Chest.position))
-                                if(Random.value > Vector3.Distance(_pos, I.transform.position)/_dis)
-                                    return I;
-                    
-                            
+            if (U.Team != Game.TeamOne && Logic.L.LastKnownTarget)    //if attacking and have known enemy location
+                Objective = Logic.L.LastKnownTarget.transform.position;
+            else
+                Objective = ObjectiveFlag.transform.position;               //flag location
+
+        }else if(Game.GameMode == GameModes.Conquest)
+        {
+            ObjectiveFlag = Manager.M.GetConquestFlag(this.transform.position, U.Team);
+            Objective = ObjectiveFlag.transform.position; 
+        }else if(Game.GameMode == GameModes.Hill)
+        {
+            ObjectiveFlag = Logic.L.Hill;
+            Objective = ObjectiveFlag.transform.position;
+        }
+    }
+
+    public Unit FindNewUnit()
+    {
+        if(NeedsLineOfSight)
+        {
+            foreach(Unit Found in U.Team == Game.TeamOne ? Manager.M.TeamTwo : Manager.M.TeamOne)
+            {
+                if(Found)
+                    if(Found.Team != U.Team && Found.Targetable && CanTarget(U.Capabilities, Found.Type))
+                        if(LineOfSight(Found.gameObject, Found.Target.position))
+                            if((Random.value > Vector3.Distance(U.Target.position, Found.transform.position)/U.DetectDistance))
+                                return Found; 
             }
-            catch{}
+        }else
+        {
+            List<Unit> Targets = new List<Unit>();
+            foreach(Unit Found in U.Team == Game.TeamOne ? Manager.M.TeamTwo : Manager.M.TeamOne)
+            {
+                if(Found)
+                    if(Found.Team != U.Team && Found.Targetable && CanTarget(U.Capabilities, Found.Type))
+                        Targets.Add(Found);
+            }
+            if(Targets.Count > 0)
+                return Targets[Random.Range(0, Targets.Count)];
+            else
+                return null;
         }
         
-
         return null;
     }
 
-    public static Unit FindNewUnit(Unit _uni, WeaponInfo.Capabilities WC, bool _los)
-    {
-        foreach(Unit U in _uni.Team == Game.TeamOne ? Manager.M.TeamTwo : Manager.M.TeamOne)
-        {
-            if(U)
-                if(U.Team != _uni.Team && U.Targetable && CanTarget(WC, U.Type))
-                    if(!_los || LineOfSight(_uni.Target.position, U.gameObject, U.Target.position))
-                        if((Random.value > Vector3.Distance(_uni.Target.position, U.transform.position)/_uni.DetectDistance))
-                            return U; 
-        }
-
-        return null;
-    }
-
-    static bool CanTarget(WeaponInfo.Capabilities WC, Unit.Types Target)
+    public bool CanTarget(WeaponInfo.Capabilities WC, Unit.Types Target)
     {
         if(WC.AntiInfantry && Target == Unit.Types.Infantry)
         {
@@ -74,44 +113,15 @@ public static class AI
         return false;
     }
 
-    public static Plane FindNewPlane(Vector3 _pos, Faction _fac, float _dis)
-    {
-        Collider[] near = Physics.OverlapSphere(_pos, _dis * 2f);
-        foreach(Collider col in near)
-        {
-            try 
-            {   
-                Plane P = col.transform.root.gameObject.GetComponent<Plane>();
-
-                if(P != null)
-                    if(P.U.Team != _fac)
-                        if(P.State != Plane.States.Falling)
-                            return P;
-            }
-            catch{}
-        }
-
-        return null;
-    }
-
-    public static bool LineOfSight(Vector3 _pos, GameObject _tar, Vector3 _aim)
+    public bool LineOfSight(GameObject _tar, Vector3 _aim)
     {
         bool sight = false;
-        Vector3 dir = _aim - _pos;
+        Vector3 dir = _aim - LineOfSightEyes.position;
         
         RaycastHit hit;             
-        if(Physics.Raycast(_pos, dir.normalized, out hit, Game.DetectDistance, Game.IgnoreSelectMask))
+        if(Physics.Raycast(LineOfSightEyes.position, dir.normalized, out hit, Game.DetectDistance, Game.IgnoreSelectMask))
             if(hit.transform.root.gameObject == _tar.transform.root.gameObject)
                 sight = true;
-
-        /*
-        if(sight)
-        {
-            Debug.DrawRay(_pos, dir.normalized * 25f, Color.green);
-        }else
-        {
-            Debug.DrawRay(_pos, dir.normalized * 25f, Color.red);
-        }*/
 
         return sight;
     }

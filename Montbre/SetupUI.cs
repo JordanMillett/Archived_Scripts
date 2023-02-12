@@ -17,7 +17,7 @@ public class SetupUI : MonoBehaviour
     public List<Menu> MenuScreens;
     public int CurrentScreen = 0;
     
-    public GameModes Choice = GameModes.Defense;
+    GameModes Choice = GameModes.Conquest;
 
     public TextMeshProUGUI Chosen;
     public TextMeshProUGUI Info;
@@ -33,9 +33,13 @@ public class SetupUI : MonoBehaviour
     public IntSlider StartingTickets;
     public IntSlider NumInfantry;
     public IntSlider NumPlanes;
-    public IntSlider NumTanks;
+    public IntSlider NumHeavyTanks;
+    public IntSlider NumLightTanks;
 
-    int ModeIndex = 0;
+    public Checkbox FlipSpawns;
+    public Checkbox RandomizeLoadouts;
+
+    int ModeIndex = 1;
 
     void Awake()
     {
@@ -54,12 +58,16 @@ public class SetupUI : MonoBehaviour
         StartingTickets.Initialize(Game.Conquest_StartingTickets);
         NumInfantry.Initialize(Game.Conquest_TeamSize);
         NumPlanes.Initialize(Game.Conquest_PlanesPerTeam);
-        NumTanks.Initialize(Game.Conquest_TanksPerTeam);
+        NumHeavyTanks.Initialize(Game.Conquest_HeavyTanksPerTeam);
+        NumLightTanks.Initialize(Game.Conquest_LightTanksPerTeam);
+        
+        FlipSpawns.Initialize(Game.FlipSpawns);
+        RandomizeLoadouts.Initialize(Game.RandomizeLoadouts);
     }
 
     void ApplyConfig()
     {
-        if(Choice != GameModes.Defense)
+        if(Game.GameMode != GameModes.Defense)
         {
             Game.TeamOne = (Faction) YourTeam.CurrentIndex;
             Game.TeamTwo = (Faction) EnemyTeam.CurrentIndex;
@@ -74,7 +82,11 @@ public class SetupUI : MonoBehaviour
         Game.Conquest_StartingTickets = StartingTickets.Value;
         Game.Conquest_TeamSize = NumInfantry.Value;
         Game.Conquest_PlanesPerTeam = NumPlanes.Value;
-        Game.Conquest_TanksPerTeam = NumTanks.Value;
+        Game.Conquest_HeavyTanksPerTeam = NumHeavyTanks.Value;
+        Game.Conquest_LightTanksPerTeam = NumLightTanks.Value;
+        
+        Game.FlipSpawns = FlipSpawns.isOn;
+        Game.RandomizeLoadouts = RandomizeLoadouts.isOn;
     }
 
     void Start()
@@ -129,8 +141,9 @@ public class SetupUI : MonoBehaviour
 
     public void Play()
     {
+        Game.GameMode = Choice;
         ApplyConfig();
-        Logic.L.Confirm(Choice);
+        Logic.L.Confirm();
     }
 
     public void Show(GameModes GM)

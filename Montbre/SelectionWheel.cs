@@ -15,6 +15,23 @@ public class SelectionWheel : MonoBehaviour
 
     public string Selected = "";
 
+    public Texture2D Buy_Man;
+    public Texture2D Buy_Artillery;
+    public Texture2D Buy_Plane;
+    public Texture2D Buy_Equipment;
+
+    public Texture2D Control;
+    public Texture2D Clear;
+    public Texture2D Follow;
+    public Texture2D Stay;
+
+    public Texture2D Return;
+    
+    public Texture2D Drop;
+
+    public Texture2D None;
+
+
     void Start()
     {
         for(int i = 0; i < 20; i++)
@@ -27,40 +44,41 @@ public class SelectionWheel : MonoBehaviour
     {
         if(Index == 0)  //Buying
         {
-            Up.Set("Men", null, Game.Defense_CargoPlaneCost.ToString());
-            Down.Set("Air", null, Game.Defense_FighterPlaneCost.ToString());
-            Left.Set("Equipment", null, Game.Defense_EquipmentCost.ToString());
-            Right.Set("Artillery", null, Game.Defense_ArtilleryCost.ToString());
+            Up.Set("Men", Buy_Man, Game.Defense_CargoPlaneCost.ToString());
+            Down.Set("Air", Buy_Plane, Game.Defense_FighterPlaneCost.ToString());
+            //Left.Set("Equipment", Buy_Equipment, Game.Defense_EquipmentCost.ToString());
+            Left.Set("Equipment", Buy_Equipment, "NA");
+            Right.Set("Artillery", Buy_Artillery, Game.Defense_ArtilleryCost.ToString());
         }else if(Index == 1)    //Selecting men as man
         {
-            Up.Set("Control", null, "Control");
-            Down.Set("Clear", null, "Clear");
-            Left.Set("Follow", null, "Follow");
-            Right.Set("Stay", null, "Stay");
+            Up.Set("Control", Control, "Control");
+            Down.Set("Clear", Clear, "Clear");
+            Left.Set("Follow", Follow, "Follow");
+            Right.Set("Stay", Stay, "Stay");
         }else if(Index == 2)    //Selecting plane as man
         {
-            Up.Set("Control", null, "Control");
-            Down.Set("", null, "");
-            Left.Set("", null, "");
-            Right.Set("", null, "");
+            Up.Set("Control", Control, "Control");
+            Down.Set("", None, "");
+            Left.Set("", None, "");
+            Right.Set("", None, "");
         }else if(Index == 3)    //anything as plane
         {
-            Up.Set("Return", null, "Return");
-            Down.Set("Drop", null, "Drop");
-            Left.Set("", null, "");
-            Right.Set("", null, "");
+            Up.Set("Return", Return, "Return");
+            Down.Set("Drop", Drop, "Drop");
+            Left.Set("", None, "");
+            Right.Set("", None, "");
         }else if(Index == 4)    //anything as tank
         {
-            Up.Set("Return", null, "Return");
-            Left.Set("", null, "");
-            Left.Set("", null, "");
-            Right.Set("", null, "");
+            Up.Set("Return", Return, "Return");
+            Down.Set("", None, "");
+            Left.Set("", None, "");
+            Right.Set("", None, "");
         }else if(Index == 5)    //Selecting tank as man
         {
-            Up.Set("Control", null, "Control");
-            Down.Set("", null, "");
-            Left.Set("", null, "");
-            Right.Set("", null, "");
+            Up.Set("Control", Control, "Control");
+            Down.Set("", None, "");
+            Left.Set("", None, "");
+            Right.Set("", None, "");
         }
     }
 

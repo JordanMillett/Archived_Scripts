@@ -19,7 +19,17 @@ public class Bomb : MonoBehaviour
 
     void Start()
     {
-        Invoke("Arm", 2f);
+        Invoke("Arm", 1f);
+    }
+    
+    public void Detonate()
+    {
+        GameObject Dec = Instantiate(Prefab, this.transform.position, Quaternion.identity);
+        Dec.transform.rotation = Quaternion.LookRotation(Vector3.up);
+
+        Dec.GetComponent<Explosion>().Explode(EffectSize, ExplosionSize, ExplosionDamage, SoundVolume, PlayerOwned);
+
+        Destroy(this.transform.gameObject);
     }
 
     void Arm()

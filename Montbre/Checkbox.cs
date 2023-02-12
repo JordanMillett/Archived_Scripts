@@ -18,6 +18,7 @@ public class Checkbox : MonoBehaviour
 
     public void Toggle()
     {
+        MenuManager.MM.PlaySound();
         isOn = !isOn;
         ToggledGraphic.SetActive(isOn);
         

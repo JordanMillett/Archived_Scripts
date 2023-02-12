@@ -96,7 +96,7 @@ public class MenuManager : MonoBehaviour
 
     public void PlaySound()
     {
-        AS.volume = (0.4f * (Settings._sfxVolume/100f)) * (Settings._masterVolume/100f);
+        AS.volume = (0.25f * (Settings._sfxVolume/100f)) * (Settings._masterVolume/100f);
         AS.clip = Click;
         AS.Play();
     }

@@ -8,7 +8,7 @@ public class Artillery : MonoBehaviour
 
     void Start()
     {
-        Invoke("Shoot", Random.Range(3f, 10f));
+        Invoke("Shoot", Random.Range(3f, 6f));
     }
 
     void Shoot()
